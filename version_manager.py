@@ -18,6 +18,7 @@ from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_vi
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
 from checkers.tailscale import check_tailscale_versions
+from checkers.traefik import get_traefik_version
 import config
 
 class VersionManager:
@@ -76,6 +77,7 @@ class VersionManager:
         
         current_version = None
         latest_version = None
+        firmware_update_available = False
         
         # Get latest version (mostly from GitHub)
         if github_repo and pd.notna(github_repo) and check_method != 'tailscale_multi':
@@ -98,6 +100,9 @@ class VersionManager:
                 url = app.get('Target')
                 github_repo = app.get('GitHub')
                 current_version = get_konnected_version(instance, url, github_repo)
+            elif app_name == 'Traefik':
+                url = app.get('Target')
+                current_version = get_traefik_version(instance, url)
         elif check_method == 'k8s_api_github':
             if app_name == 'K3s':
                 current_version = get_k3s_current_version(instance)
@@ -120,10 +125,9 @@ class VersionManager:
                     if result.get('full_version'):
                         latest_version = result['full_version']
                     
-                    
-                    # Update notes if firmware update is available
-                    if firmware_update_available:
-                        self.df.at[index, 'Notes'] = 'Firmware update available'
+            # Update notes if firmware update is available (OPNsense specific)
+            if firmware_update_available:
+                self.df.at[index, 'Notes'] = 'Firmware update available'
         elif check_method == 'project_version':
             if app_name == 'Konnected':
                 github_repo = app.get('GitHub')
