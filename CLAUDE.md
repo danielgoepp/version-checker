@@ -19,11 +19,12 @@ Applications can have multiple instances tracked separately:
 - **Zigbee2MQTT**: zigbee11, zigbee15
 - **Telegraf**: vm, graylog
 - **Konnected**: car, workshop
+- **Traefik**: prod, mudderpi, morgspi
 
 ### Check Methods
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
-| `api_github` | API call + GitHub releases | Home Assistant, ESPHome |
+| `api_github` | API call + GitHub releases | Home Assistant, ESPHome, Traefik |
 | `kubectl_github` | Kubernetes exec + GitHub | Telegraf |
 | `k8s_api_github` | Kubernetes API + GitHub | K3s |
 | `mqtt_github` | MQTT subscription + GitHub | Zigbee2MQTT |
@@ -48,6 +49,7 @@ Applications can have multiple instances tracked separately:
   - `checkers/github.py`: GitHub release API functions
   - `checkers/home_assistant.py`: Home Assistant API integration
   - `checkers/kubectl.py`: Kubernetes pod version extraction
+  - `checkers/traefik.py`: Traefik API endpoint version checking
   - `checkers/utils.py`: Shared HTTP request helper
 
 ## Configuration Patterns

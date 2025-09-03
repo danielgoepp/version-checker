@@ -103,12 +103,16 @@ Based on your existing scripts:
 - **OPNsense** (Web scraping) - Single instance
 - **Telegraf** (GitHub only) - Single instance
 - **VictoriaMetrics** (GitHub only) - Single instance
+- **Traefik** (API + GitHub) - **Multi-instance: prod, mudderpi, morgspi**
 
 ### Multi-Instance Applications
-Applications like Kopia that run on multiple servers are tracked separately:
+Applications like Kopia and Traefik that run on multiple servers are tracked separately:
 - **Kopia-ssd**: kopia-ssd.goepp.net:51515
 - **Kopia-hdd**: kopia-hdd.goepp.net:51515  
 - **Kopia-b2**: kopia-b2.goepp.net:51515
+- **Traefik-prod**: traefik-prod.goepp.net
+- **Traefik-mudderpi**: traefik-mudderpi.goepp.net
+- **Traefik-morgspi**: traefik-morgspi.goepp.net
 
 Each instance gets its own row in the Excel file with individual version tracking.
 
