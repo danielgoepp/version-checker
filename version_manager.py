@@ -15,11 +15,12 @@ from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
 from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version
+from checkers.server_status import check_server_status
 
 class VersionManager:
     # Constants
     DEFAULT_EXCEL_PATH = "Goepp Homelab Master.xlsx"
-    SHEET_NAME = "Version_Tracking"
+    SHEET_NAME = "Sheet1"
     
     STATUS_ICONS = {
         'Up to Date': '✅',
@@ -83,15 +84,15 @@ class VersionManager:
         # Get current version based on check method
         if check_method == 'api_github':
             if app_name == 'Home Assistant':
-                url = app.get('URL')
+                url = app.get('Target')
                 if url:
                     current_version = get_home_assistant_version(instance, url)
             elif app_name == 'ESPHome':
-                url = app.get('URL')
+                url = app.get('Target')
                 if url:
                     current_version = get_esphome_version(url)
             elif app_name == 'Konnected':
-                url = app.get('URL')
+                url = app.get('Target')
                 github_repo = app.get('GitHub')
                 current_version = get_konnected_version(instance, url, github_repo)
         elif check_method == 'k8s_api_github':
@@ -102,11 +103,11 @@ class VersionManager:
                 current_version = get_zigbee2mqtt_version(instance)
         elif check_method == 'command_github':
             if app_name == 'Kopia':
-                url = app.get('URL')
+                url = app.get('Target')
                 current_version = get_kopia_version(instance, url)
         elif check_method == 'api_custom':
             if app_name == 'OPNsense':
-                url = app.get('URL')
+                url = app.get('Target')
                 result = get_opnsense_version(instance, url)
                 if isinstance(result, dict):
                     current_version = result.get('current_version')
@@ -143,6 +144,27 @@ class VersionManager:
         elif check_method == 'kubectl_tags':
             if app_name == 'Mosquitto':
                 current_version = get_mosquitto_version(instance)
+        elif check_method == 'server_status':
+            # Handle server/hardware Linux version checks via SSH
+            target = app.get('Target')
+            if target:
+                server_info = check_server_status(instance, target)
+                if server_info:
+                    # Use kernel version as the "version" to track
+                    current_version = server_info['kernel']
+                    latest_version = server_info.get('latest_kernel', server_info['kernel'])
+                    
+                    # Update Category with the OS name
+                    self.df.at[index, 'Category'] = server_info['os_name']
+                    
+                    # Store full display info in Update_Details
+                    display_info = server_info['display_info']
+                    if latest_version and latest_version != current_version:
+                        display_info += f" | Latest: {latest_version}"
+                    self.df.at[index, 'Update_Details'] = display_info
+                else:
+                    current_version = "SSH Failed"
+                    latest_version = "Unknown"
         
         # Update DataFrame
         if current_version:
