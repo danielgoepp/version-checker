@@ -5,7 +5,7 @@ import pandas as pd
 def update_excel_structure():
     """Update existing Excel file structure while preserving all data"""
     
-    excel_path = 'Goepp IT Master.xlsx'
+    excel_path = 'Goepp Homelab Master.xlsx'
     
     # Load existing data
     try:

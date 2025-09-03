@@ -18,7 +18,7 @@ from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_vi
 
 class VersionManager:
     # Constants
-    DEFAULT_EXCEL_PATH = "Goepp IT Master.xlsx"
+    DEFAULT_EXCEL_PATH = "Goepp Homelab Master.xlsx"
     SHEET_NAME = "Version_Tracking"
     
     STATUS_ICONS = {
@@ -278,7 +278,7 @@ def main():
     if vm.df is None:
         return
     
-    print("Goepp IT Version Manager")
+    print("Goepp Homelab Version Manager")
     print("========================")
     
     while True:

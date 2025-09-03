@@ -10,9 +10,9 @@ urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 from version_manager import VersionManager
 
 def main():
-    parser = argparse.ArgumentParser(description='Goepp IT Version Manager')
-    parser.add_argument('--excel', default='Goepp IT Master.xlsx', 
-                       help='Path to Excel file (default: Goepp IT Master.xlsx)')
+    parser = argparse.ArgumentParser(description='Goepp Homelab Version Manager')
+    parser.add_argument('--excel', default='Goepp Homelab Master.xlsx', 
+                       help='Path to Excel file (default: Goepp Homelab Master.xlsx)')
     parser.add_argument('--check-all', action='store_true',
                        help='Check all applications and exit')
     parser.add_argument('--summary', action='store_true',

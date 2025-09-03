@@ -5,7 +5,7 @@ Excel-based software version monitoring system with multi-instance support for t
 
 ## Architecture
 - **Language**: Python 3.13.7 with pandas, requests, paho-mqtt libraries
-- **Excel Database**: "Goepp IT Master.xlsx" with Name/Instance structure
+- **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure
 - **Modular Design**: Individual checkers in `checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
 - **Virtual Environment**: Always use `source venv/bin/activate`

@@ -1,10 +1,10 @@
-# Goepp IT Version Manager
+# Goepp Homelab Version Manager
 
 A comprehensive Python-based system for tracking software versions across your infrastructure using Excel for data management.
 
 ## Features
 
-- **Excel Integration**: Uses "Goepp IT Master.xlsx" with Name/Instance structure
+- **Excel Integration**: Uses "Goepp Homelab Master.xlsx" with Name/Instance structure
 - **Multi-Instance Support**: Track multiple instances of the same application (e.g., Kopia nodes)
 - **Multiple Check Methods**: 
   - GitHub API for latest releases
@@ -120,7 +120,7 @@ Each instance gets its own row in the Excel file with individual version trackin
 
 
 ## Files in Project:
-- **`Goepp IT Master.xlsx`** - Excel file with Name/Instance structure for tracking
+- **`Goepp Homelab Master.xlsx`** - Excel file with Name/Instance structure for tracking
 - **`version_manager.py`** - Core Python class handling all version checking logic
 - **`check_versions.py`** - Command-line interface with multi-instance support
 - **`update_excel.py`** - Script to update Excel structure while preserving data
