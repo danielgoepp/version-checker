@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/Users/dang/Documents/Development/version-checker/venv/bin/python
 
 import argparse
 import sys
