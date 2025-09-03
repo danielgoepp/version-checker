@@ -17,6 +17,8 @@ from checkers.kopia import get_kopia_version
 from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
+from checkers.tailscale import check_tailscale_versions
+import config
 
 class VersionManager:
     # Constants
@@ -76,7 +78,7 @@ class VersionManager:
         latest_version = None
         
         # Get latest version (mostly from GitHub)
-        if github_repo and pd.notna(github_repo):
+        if github_repo and pd.notna(github_repo) and check_method != 'tailscale_multi':
             if check_method == 'kubectl_tags':
                 latest_version = get_github_latest_tag(github_repo)
             else:
@@ -162,12 +164,31 @@ class VersionManager:
                     latest_version = "Unknown"
         elif check_method == 'api_proxmox':
             if app_name == 'Proxmox VE':
-                url = app.get('URL')
+                url = app.get('Target')
                 if url:
                     current_version = get_proxmox_version(instance, url)
                     # Get latest version for Proxmox VE
                     if not latest_version:
                         latest_version = get_proxmox_latest_version()
+        elif check_method == 'tailscale_multi':
+            if app_name == 'Tailscale':
+                print("  Checking all Tailscale devices...")
+                device_results = check_tailscale_versions(
+                    api_key=config.TAILSCALE_API_KEY,
+                    tailnet=config.TAILSCALE_TAILNET
+                )
+                
+                if device_results and device_results['total_devices'] > 0:
+                    # Use counts from API update availability
+                    devices_needing_updates = device_results['devices_needing_updates']
+                    devices_up_to_date = device_results['devices_up_to_date']
+                    total_devices = device_results['total_devices']
+                    
+                    # Current version shows count of devices needing updates
+                    current_version = f"{devices_needing_updates} need updates"
+                    
+                    # Latest version shows count of devices up to date  
+                    latest_version = f"{devices_up_to_date} up-to-date"
         
         # Update DataFrame
         if current_version:
@@ -178,20 +199,29 @@ class VersionManager:
         # Determine status
         status = "Unknown"
         if current_version and latest_version:
-            # For Kopia, extract just the version number for comparison
-            current_clean = current_version
-            if "build:" in current_version:
-                current_clean = current_version.split("build:")[0].strip()
-            
-            # Remove 'v' prefix if present in latest_version
-            latest_clean = latest_version
-            if latest_clean.startswith("v"):
-                latest_clean = latest_clean[1:]
-            
-            if current_clean == latest_clean:
-                status = "Up to Date"
+            # Special handling for Tailscale multi-device checking
+            if check_method == 'tailscale_multi' and app_name == 'Tailscale':
+                # For Tailscale, current_version contains devices needing updates count
+                if "0 need updates" in current_version:
+                    status = "Up to Date"
+                else:
+                    status = "Update Available"
             else:
-                status = "Update Available"
+                # Standard version comparison for other applications
+                # For Kopia, extract just the version number for comparison
+                current_clean = current_version
+                if "build:" in current_version:
+                    current_clean = current_version.split("build:")[0].strip()
+                
+                # Remove 'v' prefix if present in latest_version
+                latest_clean = latest_version
+                if latest_clean.startswith("v"):
+                    latest_clean = latest_clean[1:]
+                
+                if current_clean == latest_clean:
+                    status = "Up to Date"
+                else:
+                    status = "Update Available"
         elif latest_version and not current_version:
             status = "Latest Available"
         elif current_version and not latest_version:
