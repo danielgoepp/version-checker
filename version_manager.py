@@ -117,9 +117,6 @@ class VersionManager:
                     if result.get('full_version'):
                         latest_version = result['full_version']
                     
-                    # Store detailed information in Update_Details only
-                    if result.get('update_details'):
-                        self.df.at[index, 'Update_Details'] = result['update_details']
                     
                     # Update notes if firmware update is available
                     if firmware_update_available:
@@ -154,14 +151,11 @@ class VersionManager:
                     current_version = server_info['kernel']
                     latest_version = server_info.get('latest_kernel', server_info['kernel'])
                     
-                    # Update Category with the OS name
-                    self.df.at[index, 'Category'] = server_info['os_name']
+                    # Update Category with the OS name only if it's missing or empty
+                    current_category = self.df.at[index, 'Category']
+                    if pd.isna(current_category) or current_category == '' or str(current_category).strip() == '':
+                        self.df.at[index, 'Category'] = server_info['os_name']
                     
-                    # Store full display info in Update_Details
-                    display_info = server_info['display_info']
-                    if latest_version and latest_version != current_version:
-                        display_info += f" | Latest: {latest_version}"
-                    self.df.at[index, 'Update_Details'] = display_info
                 else:
                     current_version = "SSH Failed"
                     latest_version = "Unknown"

@@ -9,7 +9,7 @@ def update_excel_structure():
     
     # Load existing data
     try:
-        df = pd.read_excel(excel_path, sheet_name='Version_Tracking')
+        df = pd.read_excel(excel_path, sheet_name='Sheet1')
         print(f"Loaded existing data with {len(df)} applications")
     except FileNotFoundError:
         print("ERROR: No existing Excel file found!")
@@ -18,22 +18,19 @@ def update_excel_structure():
         print(f"Error reading existing Excel file: {e}")
         return None
     
-    # Add Update_Details column if it doesn't exist
-    if 'Update_Details' not in df.columns:
-        df['Update_Details'] = ''
     
     # Remove unwanted columns if they exist
-    columns_to_remove = ['Update_Count', 'Full_Version', 'Update_Size']
+    columns_to_remove = ['Update_Count', 'Full_Version', 'Update_Size', 'Update_Details']
     for col in columns_to_remove:
         if col in df.columns:
             df = df.drop(col, axis=1)
     
     # Save the updated DataFrame
     with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Version_Tracking', index=False)
+        df.to_excel(writer, sheet_name='Sheet1', index=False)
         
         # Auto-adjust column widths
-        worksheet = writer.sheets['Version_Tracking']
+        worksheet = writer.sheets['Sheet1']
         for column in worksheet.columns:
             max_length = 0
             column_letter = column[0].column_letter
