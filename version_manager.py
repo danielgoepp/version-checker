@@ -16,6 +16,7 @@ from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
 from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version
 from checkers.server_status import check_server_status
+from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
 
 class VersionManager:
     # Constants
@@ -159,6 +160,14 @@ class VersionManager:
                 else:
                     current_version = "SSH Failed"
                     latest_version = "Unknown"
+        elif check_method == 'api_proxmox':
+            if app_name == 'Proxmox VE':
+                url = app.get('URL')
+                if url:
+                    current_version = get_proxmox_version(instance, url)
+                    # Get latest version for Proxmox VE
+                    if not latest_version:
+                        latest_version = get_proxmox_latest_version()
         
         # Update DataFrame
         if current_version:
@@ -260,8 +269,8 @@ class VersionManager:
         col_widths = {
             'Name': 18,
             'Instance': 22,  # Sized for longest instance name (vms-prod-lt-vmsingle = 20 chars + padding)
-            'Current': 12,
-            'Latest': 12,
+            'Current': 22,   # Increased for RPi kernel strings like 6.12.34+rpt-rpi-v8
+            'Latest': 22,    # Increased for RPi kernel strings like 6.12.34+rpt-rpi-v8
             'Last_Checked': 20,  # Increased for full timestamp display
             'Status': 3  # Just icons, small width
         }

@@ -40,3 +40,6 @@ OPNSENSE_API_SECRET = get_required_env('OPNSENSE_API_SECRET', 'OPNsense API secr
 MQTT_BROKER = get_optional_env('MQTT_BROKER', 'mosquitto-prod.goepp.net', 'MQTT broker hostname')
 MQTT_USERNAME = get_required_env('MQTT_USERNAME', 'MQTT username')
 MQTT_PASSWORD = get_required_env('MQTT_PASSWORD', 'MQTT password')
+
+# Proxmox API credentials - REQUIRED
+PROXMOX_API_TOKEN = get_required_env('PROXMOX_API_TOKEN', 'Proxmox API token (format: user@realm!tokenid=uuid)')
