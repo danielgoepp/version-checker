@@ -120,9 +120,8 @@ Applications can have multiple instances tracked separately:
 - **Import pattern**: Import checker functions in `version_manager.py`
 
 ### Excel Structure Preservation
-- Excel now uses "URL" column (renamed from "Endpoint") 
+- Excel uses Target column
 - Store complete URLs with protocols in Excel
-- Always backup before structural changes
 - Maintain Name/Instance column pattern
 
 ### Error Handling
@@ -148,3 +147,6 @@ Applications can have multiple instances tracked separately:
 - **Virtual Environment**: Recreate with new Python versions for optimal compatibility
 - **SSL/TLS**: Uses system OpenSSL with urllib3 v2.5.0+ for secure HTTPS requests
 - **Code Organization**: Modular architecture with 451 total lines across all checker modules
+
+## Documentation
+- **README.md**: Keep things general, do not include specific details about the local specific environment.

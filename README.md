@@ -69,50 +69,60 @@ Run `./check_versions.py` without arguments for menu-driven interface:
 
 ## Excel Structure
 
-The Excel file contains three sheets:
+The Excel file uses a single sheet with the following columns:
 
-### Version_Tracking
 - **Name**: Application name (Home Assistant, Kopia, etc.)
-- **Instance**: Specific instance (ssd, hdd, b2, or "default" for single instances)
-- **Category**: Type (Home Automation, Monitoring, etc.)
-- **Type**: Check method (API, GitHub, MQTT, etc.)  
-- **URL/Endpoint**: Connection details
-- **GitHub_Repo**: Repository for latest version checks
+- **Instance**: Specific instance (ssd, hdd, b2, prod, etc.)
+- **Type**: Application type/category
+- **Category**: Infrastructure category (set automatically for servers)
+- **Target**: Connection endpoint (URLs, hostnames, etc.)
+- **GitHub**: Repository path for latest version checks
 - **Current_Version**: Currently running version
 - **Latest_Version**: Latest available version
 - **Status**: Up to Date, Update Available, etc.
 - **Last_Checked**: Timestamp of last check
-- **Check_Method**: How versions are retrieved
-- **Notes**: Additional information
+- **Check_Method**: How versions are retrieved (see methods below)
+- **Notes**: Additional information (auto-populated for some checks)
 
-### Summary
-- Category-based counting and status
+## Supported Applications & Check Methods
 
-### Config
-- Settings like API tokens, check intervals, notifications
+### Check Methods Available
+- **`api_github`**: API call + GitHub releases (Home Assistant, ESPHome, Traefik)
+- **`k8s_api_github`**: Kubernetes API + GitHub (K3s clusters)
+- **`kubectl_github`**: Kubernetes exec + GitHub (Telegraf, VictoriaMetrics)
+- **`kubectl_tags`**: Kubernetes with Docker tags (Mosquitto)
+- **`mqtt_github`**: MQTT subscription + GitHub (Zigbee2MQTT)
+- **`command_github`**: Shell command + GitHub (Kopia backup nodes)
+- **`project_version`**: GitHub YAML project version (Konnected)
+- **`api_custom`**: Custom API logic (OPNsense)
+- **`server_status`**: SSH-based server monitoring (Linux servers, Raspberry Pi)
+- **`api_proxmox`**: Proxmox VE API integration (Proxmox clusters)
+- **`tailscale_multi`**: Multi-device Tailscale API (Tailscale mesh networks)
 
-## Supported Applications
-
-Based on your existing scripts:
-- **Home Assistant** (API + GitHub) - Single instance
-- **K3s** (Kubernetes API + GitHub) - Single cluster
-- **Zigbee2MQTT** (MQTT + GitHub) - Single instance  
-- **Kopia** (Command + GitHub) - **Multi-instance: ssd, hdd, b2 nodes**
-- **ESPHome** (GitHub only) - Single instance
-- **Konnected** (GitHub only) - Single instance
-- **OPNsense** (Web scraping) - Single instance
-- **Telegraf** (GitHub only) - Single instance
-- **VictoriaMetrics** (GitHub only) - Single instance
-- **Traefik** (API + GitHub) - **Multi-instance: prod, mudderpi, morgspi**
+### Application Types Supported
+- **Home Assistant** - Home automation platform with API monitoring
+- **Kubernetes (K3s)** - Lightweight Kubernetes clusters
+- **Kopia** - Backup software with multi-node support
+- **Traefik** - Reverse proxy and load balancer
+- **Zigbee2MQTT** - Zigbee to MQTT bridge with multiple coordinators
+- **ESPHome** - ESP8266/ESP32 firmware platform
+- **Telegraf** - Metrics collection agent
+- **VictoriaMetrics** - Time series database components
+- **Konnected** - Security system integration panels
+- **Mosquitto** - MQTT broker
+- **OPNsense** - Firewall/router firmware
+- **Proxmox VE** - Virtualization platform
+- **Linux Servers** - Ubuntu/Raspberry Pi OS kernel monitoring
+- **Tailscale** - VPN mesh network device tracking
 
 ### Multi-Instance Applications
-Applications like Kopia and Traefik that run on multiple servers are tracked separately:
-- **Kopia-ssd**: kopia-ssd.goepp.net:51515
-- **Kopia-hdd**: kopia-hdd.goepp.net:51515  
-- **Kopia-b2**: kopia-b2.goepp.net:51515
-- **Traefik-prod**: traefik-prod.goepp.net
-- **Traefik-mudderpi**: traefik-mudderpi.goepp.net
-- **Traefik-morgspi**: traefik-morgspi.goepp.net
+Applications that run on multiple servers are tracked separately by instance:
+- **Kopia**: Backup instances (ssd, hdd, b2) with separate version tracking
+- **Traefik**: Load balancer instances (prod, server1, rpi1) across different environments
+- **Home Assistant**: Multiple installations (prod, rpi2, server3)
+- **Zigbee2MQTT**: Multiple coordinators (coordinator1, coordinator2)
+- **Telegraf**: Multiple monitoring agents (vm, graylog, server4)
+- **Konnected**: Multiple alarm panels (car, workshop, garage)
 
 Each instance gets its own row in the Excel file with individual version tracking.
 
@@ -124,12 +134,22 @@ Each instance gets its own row in the Excel file with individual version trackin
 
 
 ## Files in Project:
-- **`Goepp Homelab Master.xlsx`** - Excel file with Name/Instance structure for tracking
+- **`Goepp Homelab Master.xlsx`** - Excel database with Name/Instance structure for tracking
 - **`version_manager.py`** - Core Python class handling all version checking logic
 - **`check_versions.py`** - Command-line interface with multi-instance support
 - **`update_excel.py`** - Script to update Excel structure while preserving data
-- **`requirements.txt`** - Python dependencies  
-- **`activate.sh`** - Helper script for virtual environment activation
+- **`requirements.txt`** - Python dependencies
+- **`config.py`** - Configuration and credentials (not committed to git)
+- **`checkers/`** - Directory containing modular version checker modules
+  - **`github.py`** - GitHub release API functions
+  - **`home_assistant.py`** - Home Assistant API integration
+  - **`kubectl.py`** - Kubernetes pod version extraction
+  - **`traefik.py`** - Traefik API endpoint version checking
+  - **`server_status.py`** - SSH-based server monitoring
+  - **`proxmox.py`** - Proxmox VE API integration
+  - **`tailscale.py`** - Multi-device Tailscale monitoring
+  - **`utils.py`** - Shared HTTP request helpers
+  - And more specialized checkers for each application type
 - **`venv/`** - Virtual environment (not committed to git)
 
 ## Quick Start Example:
