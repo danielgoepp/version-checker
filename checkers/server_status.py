@@ -38,9 +38,9 @@ def check_server_status(instance, target):
 
                 # Get latest kernel version for comparison based on OS type
                 if "Ubuntu" in pretty_name:
-                    latest_kernel = get_latest_ubuntu_kernel_version(kernel)
+                    latest_kernel = get_latest_ubuntu_kernel_version(kernel, target)
                 elif "Raspbian" in pretty_name or "Raspberry Pi OS" in pretty_name:
-                    latest_kernel = get_latest_rpi_kernel_version(kernel)
+                    latest_kernel = get_latest_rpi_kernel_version(kernel, target)
                 else:
                     # Default to current kernel for unknown systems
                     latest_kernel = kernel

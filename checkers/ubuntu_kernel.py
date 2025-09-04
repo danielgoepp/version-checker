@@ -1,137 +1,104 @@
 #!/usr/bin/env python
 
-import requests
 import re
-import json
-from .utils import http_get
 
-def get_latest_ubuntu_kernel_version(current_kernel):
+def get_latest_ubuntu_kernel_version(current_kernel, target_host=None):
     """
-    Get the latest Ubuntu kernel version for comparison
-    Uses Ubuntu's kernel.ubuntu.com API to find latest kernel versions
+    Get the latest Ubuntu kernel version using dynamic checking via SSH and apt
     
     Args:
-        current_kernel: Current kernel version string (e.g., "6.8.0-31-generic")
+        current_kernel: Current kernel version string (e.g., "6.8.0-79-generic")
+        target_host: SSH target to check apt repositories (optional)
     
     Returns:
         str: Latest kernel version or current if up-to-date/error
     """
     try:
-        # Extract Ubuntu release info from kernel version
-        # Ubuntu kernels typically follow pattern: X.Y.Z-N-generic, X.Y.Z-N-aws, etc.
-        kernel_match = re.match(r'(\d+)\.(\d+)\.(\d+)-(\d+)-(generic|aws|azure|gcp|lowlatency)', current_kernel)
-        
-        if not kernel_match:
-            # If we can't parse the kernel version, just return current
-            return current_kernel
-        
-        major = int(kernel_match.group(1))
-        minor = int(kernel_match.group(2))
-        patch = int(kernel_match.group(3))
-        abi = int(kernel_match.group(4))
-        flavor = kernel_match.group(5)
-        
-        # Try to get latest kernel info from kernel.ubuntu.com API
-        # This provides structured data about Ubuntu kernel versions
-        api_url = "https://kernel.ubuntu.com/api/kernels.json"
-        
-        response = requests.get(api_url, timeout=10)
-        
-        if response.status_code == 200:
-            kernels_data = response.json()
+        # SSH-based dynamic checking
+        if target_host:
+            latest_via_ssh = get_latest_kernel_via_ssh(target_host)
+            if latest_via_ssh == 'no update':
+                # No updates available - system is current
+                return current_kernel
+            elif latest_via_ssh and latest_via_ssh != current_kernel:
+                if is_newer_ubuntu_kernel(latest_via_ssh, current_kernel):
+                    return latest_via_ssh
             
-            # Look for the latest stable kernel version
-            latest_version = find_latest_ubuntu_kernel(kernels_data, major, minor, flavor)
-            
-            if latest_version:
-                # Compare with current version
-                if is_newer_ubuntu_kernel(latest_version, current_kernel):
-                    return latest_version
-        
-        # Fallback: check mainline kernel.org for latest kernel versions
-        latest_mainline = get_latest_mainline_kernel(major, minor)
-        if latest_mainline and is_newer_ubuntu_kernel(latest_mainline, current_kernel):
-            return latest_mainline
-            
-        # If we can't determine a newer version, return current
+        # If no newer version found, return current
         return current_kernel
         
     except Exception as e:
         print(f"  Error checking Ubuntu kernel versions: {e}")
         return current_kernel
 
-def find_latest_ubuntu_kernel(kernels_data, target_major, target_minor, flavor):
+def get_latest_kernel_via_ssh(target_host):
     """
-    Find the latest Ubuntu kernel from the API data
+    Get latest available kernel version via SSH using apt update + apt list --upgradable
+    
+    Args:
+        target_host: SSH target (user@host or just host)
     
     Returns:
-        str: Latest kernel version string or None
+        str: Latest available kernel version or 'no update' if none available
     """
     try:
-        # Ubuntu kernel API structure varies, so this is a simplified approach
-        # Look for kernels matching our major.minor series
+        import subprocess
         
-        latest_version = None
-        latest_abi = 0
+        print(f"    Updating package lists on {target_host}...")
+        # First run apt update to refresh package lists
+        update_cmd = [
+            'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+            target_host, 
+            'sudo', 'apt', 'update', '-qq'
+        ]
         
-        # This is a simplified parser - the actual API structure may vary
-        # For now, construct a reasonable latest version based on patterns
+        update_result = subprocess.run(update_cmd, capture_output=True, text=True, timeout=30)
         
-        # Ubuntu 24.04 LTS typically uses 6.8.x kernels
-        # Ubuntu 22.04 LTS typically uses 5.15.x or 6.5.x kernels
-        # Ubuntu 20.04 LTS typically uses 5.4.x kernels
+        if update_result.returncode != 0:
+            print(f"    apt update failed: {update_result.stderr}")
+            return None
         
-        known_latest_versions = {
-            (6, 8): "6.8.0-50-generic",  # Recent Ubuntu 24.04 LTS
-            (6, 5): "6.5.0-44-generic",  # Ubuntu 22.04 LTS HWE
-            (5, 15): "5.15.0-125-generic", # Ubuntu 22.04 LTS GA
-            (5, 4): "5.4.0-200-generic",  # Ubuntu 20.04 LTS
-        }
+        print(f"    Checking for kernel updates...")
+        # Then run apt list --upgradable to see what can be upgraded
+        list_cmd = [
+            'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+            target_host, 
+            'apt', 'list', '--upgradable'
+        ]
         
-        return known_latest_versions.get((target_major, target_minor))
+        list_result = subprocess.run(list_cmd, capture_output=True, text=True, timeout=15)
+        
+        if list_result.returncode == 0:
+            # Parse apt list output for linux-image packages
+            for line in list_result.stdout.split('\n'):
+                if 'linux-image-' in line and 'generic' in line:
+                    # Example line: "linux-image-generic/noble-updates,noble-security 6.8.0.85.85 amd64 [upgradable from: 6.8.0.79.79]"
+                    # Extract the version being upgraded to
+                    version_match = re.search(r'linux-image-generic\S*\s+(\S+)', line)
+                    if version_match:
+                        package_version = version_match.group(1)
+                        
+                        # Convert package version to kernel version format
+                        # Package: 6.8.0.85.85 -> Kernel: 6.8.0-85-generic
+                        version_parts = package_version.split('.')
+                        if len(version_parts) >= 4:
+                            major, minor, patch = version_parts[0], version_parts[1], version_parts[2]
+                            abi = version_parts[3]
+                            kernel_version = f"{major}.{minor}.{patch}-{abi}-generic"
+                            print(f"    Found kernel update available: {kernel_version}")
+                            return kernel_version
+            
+            # No linux-image packages found in upgradable list
+            print(f"    No kernel updates available")
+            return 'no update'
+            
+        return None
         
     except Exception as e:
-        print(f"  Error parsing Ubuntu kernel data: {e}")
+        print(f"  Error getting kernel version via SSH: {e}")
         return None
 
-def get_latest_mainline_kernel(major, minor):
-    """
-    Get latest mainline kernel version for reference
-    This provides a fallback when Ubuntu-specific info isn't available
-    
-    Returns:
-        str: Latest mainline kernel version in Ubuntu format
-    """
-    try:
-        # Check kernel.org for latest stable kernel in the same major.minor series
-        api_url = "https://www.kernel.org/releases.json"
-        
-        response = requests.get(api_url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Look for latest stable release matching our series
-            for release in data.get('releases', []):
-                if release.get('moniker') == 'stable':
-                    version = release.get('version', '')
-                    
-                    # Parse kernel.org version format
-                    match = re.match(r'(\d+)\.(\d+)\.(\d+)', version)
-                    if match:
-                        rel_major = int(match.group(1))
-                        rel_minor = int(match.group(2))
-                        rel_patch = int(match.group(3))
-                        
-                        if rel_major == major and rel_minor == minor:
-                            # Convert to Ubuntu-style format (approximation)
-                            return f"{version}-1-generic"
-            
-        return None
-        
-    except Exception as e:
-        print(f"  Error getting mainline kernel version: {e}")
-        return None
+
 
 def is_newer_ubuntu_kernel(version1, version2):
     """

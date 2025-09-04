@@ -1,112 +1,91 @@
-import requests
-import re
-from .utils import http_get
 
-def get_latest_rpi_kernel_version(current_kernel):
+def get_latest_rpi_kernel_version(current_kernel, target_host=None):
     """
-    Get the latest RPi kernel version using known latest versions by architecture
-    This is a simplified approach until we can reliably parse RPi repositories
+    Get the latest RPi kernel version using dynamic checking via SSH and apt
+    
+    Args:
+        current_kernel: Current kernel version string (e.g., "6.6.22-v7+")
+        target_host: SSH target to check apt repositories (optional)
+    
+    Returns:
+        str: Latest kernel version or current if up-to-date/error
     """
     try:
-        # Extract architecture from current kernel
-        arch = extract_kernel_architecture(current_kernel)
-        if not arch:
-            return None
-        
-        # Extract current version numbers
-        current_match = re.search(r'(\d+)\.(\d+)\.(\d+)', current_kernel)
-        if not current_match:
-            return None
+        # SSH-based dynamic checking
+        if target_host:
+            latest_via_ssh = get_latest_rpi_kernel_via_ssh(target_host)
+            if latest_via_ssh == 'no update':
+                # No updates available - system is current
+                return current_kernel
+            elif latest_via_ssh == 'kernel update available':
+                # Update available - for now assume it's newer than current
+                print("    RPi kernel update available (exact version unknown)")
+                return 'update available'
             
-        current_major = int(current_match.group(1))
-        current_minor = int(current_match.group(2))
-        current_patch = int(current_match.group(3))
-        
-        # Known latest kernel versions by architecture (manually maintained)
-        # These should be updated periodically
-        latest_versions = {
-            'rpi-v8': '6.12.34+rpt-rpi-v8',
-            'rpi-2712': '6.12.34+rpt-rpi-2712', 
-            'rpi-v7': '6.12.34+rpt-rpi-v7',
-            'rpi-v7l': '6.12.34+rpt-rpi-v7l',
-            'v7+': '6.6.62-v7+',  # Older Pi models may use different kernel series
-            'v8+': '6.6.62-v8+',
-            'v6': '6.6.62-v6'
-        }
-        
-        latest_kernel = latest_versions.get(arch)
-        if not latest_kernel:
-            return None
-            
-        # Extract latest version numbers
-        latest_match = re.search(r'(\d+)\.(\d+)\.(\d+)', latest_kernel)
-        if not latest_match:
-            return None
-            
-        latest_major = int(latest_match.group(1))
-        latest_minor = int(latest_match.group(2))
-        latest_patch = int(latest_match.group(3))
-        
-        # Compare versions
-        current_tuple = (current_major, current_minor, current_patch)
-        latest_tuple = (latest_major, latest_minor, latest_patch)
-        
-        # Only return latest if it's actually newer
-        if latest_tuple > current_tuple:
-            return latest_kernel
-        else:
-            # Current is up to date or newer
-            return current_kernel
+        # If no newer version found, return current
+        return current_kernel
         
     except Exception as e:
-        print(f"Error checking RPi kernel versions: {e}")
-        return None
+        print(f"  Error checking RPi kernel versions: {e}")
+        return current_kernel
 
-def extract_kernel_architecture(kernel_version):
+def get_latest_rpi_kernel_via_ssh(target_host):
     """
-    Extract architecture suffix from kernel version
-    Examples:
-    - 6.12.34+rpt-rpi-v8 -> rpi-v8
-    - 6.12.34+rpt-rpi-2712 -> rpi-2712  
-    - 6.6.22-v7+ -> v7+
-    """
-    # Pattern for RPi kernel architectures
-    arch_patterns = [
-        r'rpi-v8',
-        r'rpi-2712', 
-        r'rpi-v7l',
-        r'rpi-v7',
-        r'v8\+',
-        r'v7\+',
-        r'v6'
-    ]
+    Get latest available RPi kernel version via SSH using apt update + apt list --upgradable
     
-    for pattern in arch_patterns:
-        match = re.search(pattern, kernel_version)
-        if match:
-            return match.group(0)
+    Args:
+        target_host: SSH target (user@host or just host)
     
-    return None
-
-def extract_build_number(kernel_version):
-    """
-    Extract build number from kernel version
-    Example: 6.12.34+rpt-rpi-v8 -> 34
-    """
-    match = re.search(r'(\d+\.\d+)\.(\d+)', kernel_version)
-    if match:
-        return match.group(2)
-    return None
-
-def get_debian_kernel_version():
-    """
-    Alternative: Check Debian repositories for latest RPi kernel packages
-    This is more accurate for systems running Debian/Raspbian
+    Returns:
+        str: Latest available kernel version or 'no update' if none available
     """
     try:
-        # Check Debian package repository for raspberrypi-kernel
-        # This would require parsing Debian package listings
-        # For now, return None as this is more complex to implement
+        import subprocess
+        
+        print(f"    Updating package lists on {target_host}...")
+        # First run apt update to refresh package lists
+        update_cmd = [
+            'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+            target_host, 
+            'sudo', 'apt', 'update', '-qq'
+        ]
+        
+        update_result = subprocess.run(update_cmd, capture_output=True, text=True, timeout=30)
+        
+        if update_result.returncode != 0:
+            print(f"    apt update failed: {update_result.stderr}")
+            return None
+        
+        print(f"    Checking for kernel updates...")
+        # Then run apt list --upgradable to see what can be upgraded
+        list_cmd = [
+            'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+            target_host, 
+            'apt', 'list', '--upgradable'
+        ]
+        
+        list_result = subprocess.run(list_cmd, capture_output=True, text=True, timeout=15)
+        
+        if list_result.returncode == 0:
+            # Parse apt list output for raspberrypi-kernel packages
+            for line in list_result.stdout.split('\n'):
+                if 'raspberrypi-kernel' in line:
+                    # Example line: "raspberrypi-kernel/stable 1:1.20250101~bookworm-1 arm64 [upgradable from: 1:1.20240430~bookworm-1]"
+                    # For RPi, we need to check the actual running kernel after update
+                    # Since package versions don't directly map to kernel versions
+                    print(f"    Found RPi kernel update available")
+                    # We'll need to get the current kernel and assume the update is newer
+                    return 'kernel update available'
+            
+            # No raspberrypi-kernel packages found in upgradable list
+            print(f"    No kernel updates available")
+            return 'no update'
+            
         return None
-    except:
+        
+    except Exception as e:
+        print(f"  Error getting RPi kernel version via SSH: {e}")
         return None
+
+
+
