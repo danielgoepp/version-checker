@@ -5,10 +5,11 @@ Excel-based software version monitoring system with multi-instance support for t
 
 ## Architecture
 - **Language**: Python 3.13.7 with pandas, requests, paho-mqtt libraries
-- **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure
+- **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure and Repository field
 - **Modular Design**: Individual checkers in `checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
 - **Virtual Environment**: Always use `source venv/bin/activate`
+- **Unified Kernel Checking**: Single linux_kernel.py handles all Linux distributions
 
 ## Key Patterns
 
@@ -28,7 +29,7 @@ The system uses two separate columns for version checking:
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
 | `api` | REST API calls for version info | Home Assistant, ESPHome, Traefik, OPNsense |
-| `ssh` | SSH connections to servers for kernel versions | Raspberry Pi, Ubuntu servers |
+| `ssh` | SSH connections showing OS + kernel | Raspberry Pi, Ubuntu servers |
 | `kubectl` | Kubernetes operations (pod queries, node info) | Telegraf, VictoriaMetrics, Mosquitto, K3s |
 | `command` | Shell commands | Kopia |
 | `mqtt` | MQTT subscription | Zigbee2MQTT |
@@ -37,12 +38,13 @@ The system uses two separate columns for version checking:
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
 | `github_release` | GitHub releases API | Home Assistant, ESPHome, Traefik, K3s |
-| `github_tag` | GitHub tags API | Konnected project versions |
-| `docker_hub` | Docker Hub/container tags | Mosquitto, Graylog |
+| `github_tag` | GitHub tags API | Konnected project versions, Mosquitto |
+| `docker_hub` | Docker Hub/container tags | Graylog |
+| `ssh_apt` | SSH apt update checking | Ubuntu servers, Raspberry Pi |
 | `proxmox` | Proxmox-specific API | Proxmox VE |
 | `opnsense` | OPNsense firmware update logic | OPNsense |
 | `tailscale` | Tailscale device update tracking | Tailscale |
-| `none` | No latest version checking | Server kernels (use current) |
+| `none` | No latest version checking | Legacy method |
 
 ### Status Icons & Meanings
 - **✅ Up to Date**: Current matches latest
@@ -66,8 +68,15 @@ The system uses two separate columns for version checking:
 
 ## Configuration Patterns
 
+### Repository Field Management
+- **Excel stores repository paths**: Repository paths for GitHub, Docker Hub, etc. in Repository column  
+- **Direct usage**: No hardcoding in docker_hub method
+- **Examples**:
+  - Excel Repository: `Graylog2/graylog-docker` 
+  - Code: Uses Repository field value directly
+
 ### URL Handling  
-- **Excel stores complete URLs**: Full URLs with https:// protocols in URL column
+- **Excel stores complete URLs**: Full URLs with https:// protocols in Target column
 - **Direct usage**: No protocol manipulation needed in code
 - **Examples**:
   - Excel: `https://homeassistant-prod.goepp.net`
@@ -101,6 +110,13 @@ The system uses two separate columns for version checking:
 - **JSON payload**: Extract `version` field
 - **Timeout**: 2-second wait for message
 
+### SSH-based Kernel Checking (ssh_apt method)
+- **Current_Version**: Shows "OS Name - Kernel Version" (e.g. "Ubuntu 24.04.3 LTS - 6.8.0-79-generic")
+- **Latest_Version**: Shows "No updates" or "Update available"  
+- **Unified Logic**: Single linux_kernel.py handles Ubuntu and Raspberry Pi
+- **Package Detection**: Checks `linux-image-generic` (Ubuntu) and `raspberrypi-kernel` (RPi)
+- **No apt update**: Uses `apt list --upgradable` without refreshing package lists
+
 ## Command Interface
 ```bash
 # Check all applications
@@ -130,10 +146,12 @@ The system uses two separate columns for version checking:
 - **Shared utilities**: Use `from .utils import http_get` for HTTP requests
 - **Clean separation**: Keep service-specific logic in dedicated modules
 - **Import pattern**: Import checker functions in `version_manager.py`
+- **Unified approach**: linux_kernel.py handles all Linux distributions (57 lines vs 220 lines previously)
 
 ### Excel Structure Preservation
-- **Column Structure**: Name, Instance, Type, Category, Target, GitHub, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
+- **Column Structure**: Name, Instance, Type, Category, Target, Repository, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
 - **Target Column**: Store complete URLs with protocols in Excel
+- **Repository Column**: Store repository paths (GitHub org/repo, Docker Hub paths, etc.)
 - **Name/Instance Pattern**: Maintain consistent naming structure
 - **Check Methods**: Use `Check_Current` for version retrieval method, `Check_Latest` for latest version source
 
@@ -159,7 +177,7 @@ The system uses two separate columns for version checking:
 - **Python Version**: Requires Python 3.13.7+ for clean operation (no urllib3 warnings)
 - **Virtual Environment**: Recreate with new Python versions for optimal compatibility
 - **SSL/TLS**: Uses system OpenSSL with urllib3 v2.5.0+ for secure HTTPS requests
-- **Code Organization**: Modular architecture with 451 total lines across all checker modules
+- **Code Organization**: Modular architecture with optimized checker modules (unified linux_kernel.py reduced complexity)
 - **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use pandas with virtual environment: `source venv/bin/activate && python3 -c "import pandas as pd; df = pd.read_excel('filename')"`
 
 ## Documentation

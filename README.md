@@ -74,7 +74,7 @@ The Excel file uses a single sheet with the following columns:
 - **Type**: Application type/category
 - **Category**: Infrastructure category (set automatically for servers)
 - **Target**: Connection endpoint (URLs, hostnames, etc.)
-- **GitHub**: Repository path for latest version checks
+- **Repository**: Repository path for latest version checks (GitHub, Docker Hub, etc.)
 - **Current_Version**: Currently running version
 - **Latest_Version**: Latest available version
 - **Status**: Up to Date, Update Available, etc.
@@ -87,19 +87,20 @@ The Excel file uses a single sheet with the following columns:
 
 ### Current Version Methods (`Check_Current`)
 - **`api`**: REST API calls (Home Assistant, ESPHome, Traefik, OPNsense, Proxmox, Tailscale, Graylog)
-- **`ssh`**: SSH connections to servers (Linux servers, Raspberry Pi kernel versions)
+- **`ssh`**: SSH connections to servers (Linux servers show OS + kernel, e.g. "Ubuntu 24.04.3 LTS - 6.8.0-79-generic")
 - **`kubectl`**: Kubernetes operations - pod queries and node info (Telegraf, VictoriaMetrics, Mosquitto, K3s)
 - **`command`**: Shell commands (Kopia backup nodes)
 - **`mqtt`**: MQTT subscription (Zigbee2MQTT)
 
 ### Latest Version Methods (`Check_Latest`)
 - **`github_release`**: GitHub releases API (Home Assistant, ESPHome, Traefik, K3s, etc.)
-- **`github_tag`**: GitHub tags API (Konnected project versions)
-- **`docker_hub`**: Docker Hub/container tags (Mosquitto, Graylog)
+- **`github_tag`**: GitHub tags API (Konnected project versions, Mosquitto)
+- **`docker_hub`**: Docker Hub/container tags (Graylog)
+- **`ssh_apt`**: SSH-based apt package checking for kernel updates (Ubuntu, Raspberry Pi)
 - **`proxmox`**: Proxmox-specific API (Proxmox VE)
 - **`opnsense`**: OPNsense firmware update logic (OPNsense)
 - **`tailscale`**: Tailscale device update tracking (Tailscale)
-- **`none`**: No latest version checking (Server kernels use current)
+- **`none`**: No latest version checking (legacy method)
 
 ### Application Types Supported
 - **Home Assistant** - Home automation platform with API monitoring
@@ -114,7 +115,7 @@ The Excel file uses a single sheet with the following columns:
 - **Mosquitto** - MQTT broker
 - **OPNsense** - Firewall/router firmware
 - **Proxmox VE** - Virtualization platform
-- **Linux Servers** - Ubuntu/Raspberry Pi OS kernel monitoring
+- **Linux Servers** - Ubuntu/Raspberry Pi kernel monitoring with apt-based update detection
 - **Tailscale** - VPN mesh network device tracking
 
 ### Multi-Instance Applications
@@ -147,6 +148,7 @@ Each instance gets its own row in the Excel file with individual version trackin
   - **`home_assistant.py`** - Home Assistant API integration
   - **`kubectl.py`** - Kubernetes pod version extraction
   - **`traefik.py`** - Traefik API endpoint version checking
+  - **`linux_kernel.py`** - Unified Linux kernel update checking via SSH and apt
   - **`server_status.py`** - SSH-based server monitoring
   - **`proxmox.py`** - Proxmox VE API integration
   - **`tailscale.py`** - Multi-device Tailscale monitoring
