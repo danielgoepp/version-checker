@@ -55,10 +55,10 @@ def get_graylog_current_version(instance, url):
     except Exception as e:
         return handle_generic_error(instance, str(e), "Graylog version parsing")
 
-def get_graylog_latest_version():
-    """Get latest Graylog version from GitHub Docker repository tags"""
+def get_graylog_latest_version_from_repo(repository):
+    """Get latest Graylog version from specified GitHub Docker repository tags"""
     # Get tags from the docker repository
-    data = http_get("https://api.github.com/repos/Graylog2/graylog-docker/tags?per_page=100")
+    data = http_get(f"https://api.github.com/repos/{repository}/tags?per_page=100")
     if data and isinstance(data, list):
         # Filter out forwarder, RC, beta, and alpha tags to get stable releases
         stable_tags = [

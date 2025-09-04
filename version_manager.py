@@ -19,7 +19,7 @@ from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
 from checkers.tailscale import check_tailscale_versions
 from checkers.traefik import get_traefik_version
-from checkers.graylog import get_graylog_current_version, get_graylog_latest_version
+from checkers.graylog import get_graylog_current_version, get_graylog_latest_version_from_repo
 import config
 
 class VersionManager:
@@ -73,7 +73,7 @@ class VersionManager:
             
         check_current = app['Check_Current']
         check_latest = app['Check_Latest']
-        github_repo = app['GitHub']
+        repository = app['Repository']
         
         print(f"Checking {display_name}...")
         
@@ -82,16 +82,15 @@ class VersionManager:
         firmware_update_available = False
         
         # Get latest version based on check_latest method
-        if check_latest == 'github_release' and github_repo and pd.notna(github_repo):
-            latest_version = get_github_latest_version(github_repo)
-        elif check_latest == 'github_tag' and github_repo and pd.notna(github_repo):
-            latest_version = get_github_latest_tag(github_repo)
-        elif check_latest == 'docker_hub':
+        if check_latest == 'github_release' and repository and pd.notna(repository):
+            latest_version = get_github_latest_version(repository)
+        elif check_latest == 'github_tag' and repository and pd.notna(repository):
+            latest_version = get_github_latest_tag(repository)
+        elif check_latest == 'docker_hub' and repository and pd.notna(repository):
+            # Use Repository field for docker_hub method - no hardcoding
             if app_name == 'Graylog':
-                latest_version = get_graylog_latest_version()
-            elif github_repo and pd.notna(github_repo):
-                # For other docker_hub apps like Mosquitto, use GitHub tags
-                latest_version = get_github_latest_tag(github_repo)
+                latest_version = get_graylog_latest_version_from_repo(repository)
+            # No fallback - if docker_hub method fails, we don't get data
         elif check_latest == 'proxmox' and app_name == 'Proxmox VE':
             latest_version = get_proxmox_latest_version()
         elif check_latest == 'opnsense' and app_name == 'OPNsense':
@@ -99,6 +98,10 @@ class VersionManager:
             pass
         elif check_latest == 'tailscale' and app_name == 'Tailscale':
             # Tailscale latest version is handled in the current version check
+            pass
+        elif check_latest == 'ssh_apt':
+            # SSH-based apt checking for latest available kernel versions
+            # This will be populated during the ssh current version check
             pass
         
         # Get current version based on check_current method
@@ -113,14 +116,13 @@ class VersionManager:
                     current_version = get_esphome_version(url)
             elif app_name == 'Konnected':
                 url = app.get('Target')
-                github_repo = app.get('GitHub')
                 if check_latest == 'github_tag':
-                    # Project version mode - get from GitHub
-                    project_version = get_konnected_version(instance, None, github_repo)
+                    # Project version mode - get from Repository
+                    project_version = get_konnected_version(instance, None, repository)
                     latest_version = project_version
                     current_version = project_version
                 else:
-                    current_version = get_konnected_version(instance, url, github_repo)
+                    current_version = get_konnected_version(instance, url, repository)
             elif app_name == 'Traefik':
                 url = app.get('Target')
                 current_version = get_traefik_version(instance, url)
@@ -177,25 +179,25 @@ class VersionManager:
                 url = app.get('Target')
                 current_version = get_kopia_version(instance, url)
         elif check_current == 'ssh':
-            # Handle server/hardware Linux version checks via SSH
-            target = app.get('Target')
-            if target:
-                server_info = check_server_status(instance, target)
-                if server_info:
-                    # Use kernel version as the "version" to track
-                    current_version = server_info['kernel']
-                    if check_latest == 'none':
-                        latest_version = server_info.get('latest_kernel', server_info['kernel'])
-                    
-                    # Update Category with the OS name only if it's missing or empty
-                    current_category = self.df.at[index, 'Category']
-                    if pd.isna(current_category) or current_category == '' or str(current_category).strip() == '':
-                        self.df.at[index, 'Category'] = server_info['os_name']
-                    
-                else:
-                    current_version = "SSH Failed"
-                    if check_latest == 'none':
-                        latest_version = "Unknown"
+            # Handle server/hardware Linux version checks via SSH using instance
+            server_info = check_server_status(instance, None)
+            if server_info:
+                # Combine OS name and kernel version for Current_Version
+                os_name = server_info['os_name']
+                kernel = server_info['kernel']
+                current_version = f"{os_name} - {kernel}"
+                if check_latest == 'none' or check_latest == 'ssh_apt':
+                    raw_latest = server_info.get('latest_kernel', kernel)
+                    # For ssh_apt, show user-friendly status instead of kernel version
+                    if check_latest == 'ssh_apt':
+                        latest_version = raw_latest if raw_latest == "update available" else "No updates"
+                    else:
+                        latest_version = raw_latest
+                
+            else:
+                current_version = "SSH Failed"
+                if check_latest == 'none' or check_latest == 'ssh_apt':
+                    latest_version = "Unknown"
         
         # Update notes if firmware update is available (OPNsense specific)
         if firmware_update_available:
@@ -217,6 +219,15 @@ class VersionManager:
                     status = "Up to Date"
                 else:
                     status = "Update Available"
+            # Special handling for SSH systems with ssh_apt method
+            elif check_current == 'ssh' and check_latest == 'ssh_apt':
+                # For SSH systems, status is based on whether apt found updates
+                if latest_version == "update available":
+                    status = "Update Available"
+                elif latest_version == "No updates":
+                    status = "Up to Date"
+                else:
+                    status = "Up to Date"
             else:
                 # Standard version comparison for other applications
                 # For Kopia, extract just the version number for comparison
@@ -310,7 +321,7 @@ class VersionManager:
         col_widths = {
             'Name': 18,
             'Instance': 22,  # Sized for longest instance name (vms-prod-lt-vmsingle = 20 chars + padding)
-            'Current': 22,   # Increased for RPi kernel strings like 6.12.34+rpt-rpi-v8
+            'Current': 55,   # Sized for full OS name + kernel (e.g. "Debian GNU/Linux 12 (bookworm) - 6.12.34+rpt-rpi-2712" = 53 chars + 2)
             'Latest': 22,    # Increased for RPi kernel strings like 6.12.34+rpt-rpi-v8
             'Last_Checked': 20,  # Increased for full timestamp display
             'Status': 3  # Just icons, small width

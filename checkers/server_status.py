@@ -1,7 +1,6 @@
 import subprocess
 from .utils import print_error
-from .rpi_kernel import get_latest_rpi_kernel_version
-from .ubuntu_kernel import get_latest_ubuntu_kernel_version
+from .linux_kernel import get_latest_linux_kernel_version
 
 
 def check_server_status(instance, target):
@@ -36,14 +35,9 @@ def check_server_status(instance, target):
                 linux_info = f"{hostname} │ {kernel} │ {pretty_name}"
                 print(f"  {instance}: {linux_info}")
 
-                # Get latest kernel version for comparison based on OS type
-                if "Ubuntu" in pretty_name:
-                    latest_kernel = get_latest_ubuntu_kernel_version(kernel, target)
-                elif "Raspbian" in pretty_name or "Raspberry Pi OS" in pretty_name:
-                    latest_kernel = get_latest_rpi_kernel_version(kernel, target)
-                else:
-                    # Default to current kernel for unknown systems
-                    latest_kernel = kernel
+                # Get latest kernel version for comparison - unified for all Linux systems
+                # Always use instance as SSH target (not target column)
+                latest_kernel = get_latest_linux_kernel_version(kernel, instance)
 
                 return {
                     "hostname": hostname,
