@@ -71,7 +71,8 @@ class VersionManager:
         instance = app['Instance']
         display_name = f"{app_name}" if instance == 'prod' else f"{app_name}-{instance}"
             
-        check_method = app['Check_Method']
+        check_current = app['Check_Current']
+        check_latest = app['Check_Latest']
         github_repo = app['GitHub']
         
         print(f"Checking {display_name}...")
@@ -80,15 +81,28 @@ class VersionManager:
         latest_version = None
         firmware_update_available = False
         
-        # Get latest version (mostly from GitHub)
-        if github_repo and pd.notna(github_repo) and check_method != 'tailscale_multi':
-            if check_method == 'kubectl_tags':
+        # Get latest version based on check_latest method
+        if check_latest == 'github_release' and github_repo and pd.notna(github_repo):
+            latest_version = get_github_latest_version(github_repo)
+        elif check_latest == 'github_tag' and github_repo and pd.notna(github_repo):
+            latest_version = get_github_latest_tag(github_repo)
+        elif check_latest == 'docker_hub':
+            if app_name == 'Graylog':
+                latest_version = get_graylog_latest_version()
+            elif github_repo and pd.notna(github_repo):
+                # For other docker_hub apps like Mosquitto, use GitHub tags
                 latest_version = get_github_latest_tag(github_repo)
-            else:
-                latest_version = get_github_latest_version(github_repo)
+        elif check_latest == 'proxmox' and app_name == 'Proxmox VE':
+            latest_version = get_proxmox_latest_version()
+        elif check_latest == 'opnsense' and app_name == 'OPNsense':
+            # OPNsense latest version is handled in the current version check
+            pass
+        elif check_latest == 'tailscale' and app_name == 'Tailscale':
+            # Tailscale latest version is handled in the current version check
+            pass
         
-        # Get current version based on check method
-        if check_method == 'api_github':
+        # Get current version based on check_current method
+        if check_current == 'api':
             if app_name == 'Home Assistant':
                 url = app.get('Target')
                 if url:
@@ -100,22 +114,17 @@ class VersionManager:
             elif app_name == 'Konnected':
                 url = app.get('Target')
                 github_repo = app.get('GitHub')
-                current_version = get_konnected_version(instance, url, github_repo)
+                if check_latest == 'github_tag':
+                    # Project version mode - get from GitHub
+                    project_version = get_konnected_version(instance, None, github_repo)
+                    latest_version = project_version
+                    current_version = project_version
+                else:
+                    current_version = get_konnected_version(instance, url, github_repo)
             elif app_name == 'Traefik':
                 url = app.get('Target')
                 current_version = get_traefik_version(instance, url)
-        elif check_method == 'k8s_api_github':
-            if app_name == 'K3s':
-                current_version = get_k3s_current_version(instance)
-        elif check_method == 'mqtt_github':
-            if app_name == 'Zigbee2MQTT':
-                current_version = get_zigbee2mqtt_version(instance)
-        elif check_method == 'command_github':
-            if app_name == 'Kopia':
-                url = app.get('Target')
-                current_version = get_kopia_version(instance, url)
-        elif check_method == 'api_custom':
-            if app_name == 'OPNsense':
+            elif app_name == 'OPNsense':
                 url = app.get('Target')
                 result = get_opnsense_version(instance, url)
                 if isinstance(result, dict):
@@ -125,58 +134,11 @@ class VersionManager:
                     # Use the full_version as the latest version for OPNsense
                     if result.get('full_version'):
                         latest_version = result['full_version']
-                    
-            # Update notes if firmware update is available (OPNsense specific)
-            if firmware_update_available:
-                self.df.at[index, 'Notes'] = 'Firmware update available'
-        elif check_method == 'project_version':
-            if app_name == 'Konnected':
-                github_repo = app.get('GitHub')
-                project_version = get_konnected_version(instance, None, github_repo)
-                latest_version = project_version
-                current_version = project_version
-        elif check_method == 'kubectl_github':
-            if app_name == 'Telegraf':
-                current_version = get_telegraf_version(instance)
-            elif app_name == 'VictoriaMetrics':
-                current_version = get_victoriametrics_version(instance)
-            elif app_name == 'Mosquitto':
-                current_version = get_mosquitto_version(instance)
-        elif check_method == 'kubectl_only':
-            if app_name == 'Mosquitto':
-                current_version = get_mosquitto_version(instance)
-                latest_version = None
-        elif check_method == 'kubectl_tags':
-            if app_name == 'Mosquitto':
-                current_version = get_mosquitto_version(instance)
-        elif check_method == 'server_status':
-            # Handle server/hardware Linux version checks via SSH
-            target = app.get('Target')
-            if target:
-                server_info = check_server_status(instance, target)
-                if server_info:
-                    # Use kernel version as the "version" to track
-                    current_version = server_info['kernel']
-                    latest_version = server_info.get('latest_kernel', server_info['kernel'])
-                    
-                    # Update Category with the OS name only if it's missing or empty
-                    current_category = self.df.at[index, 'Category']
-                    if pd.isna(current_category) or current_category == '' or str(current_category).strip() == '':
-                        self.df.at[index, 'Category'] = server_info['os_name']
-                    
-                else:
-                    current_version = "SSH Failed"
-                    latest_version = "Unknown"
-        elif check_method == 'api_proxmox':
-            if app_name == 'Proxmox VE':
+            elif app_name == 'Proxmox VE':
                 url = app.get('Target')
                 if url:
                     current_version = get_proxmox_version(instance, url)
-                    # Get latest version for Proxmox VE
-                    if not latest_version:
-                        latest_version = get_proxmox_latest_version()
-        elif check_method == 'tailscale_multi':
-            if app_name == 'Tailscale':
+            elif app_name == 'Tailscale':
                 print("  Checking all Tailscale devices...")
                 device_results = check_tailscale_versions(
                     api_key=config.TAILSCALE_API_KEY,
@@ -194,13 +156,50 @@ class VersionManager:
                     
                     # Latest version shows count of devices up to date  
                     latest_version = f"{devices_up_to_date} up-to-date"
-        elif check_method == 'api_tags':
-            if app_name == 'Graylog':
+            elif app_name == 'Graylog':
                 url = app.get('Target')
                 if url:
                     current_version = get_graylog_current_version(instance, url)
-                    if not latest_version:
-                        latest_version = get_graylog_latest_version()
+        elif check_current == 'kubectl':
+            if app_name == 'Telegraf':
+                current_version = get_telegraf_version(instance)
+            elif app_name == 'VictoriaMetrics':
+                current_version = get_victoriametrics_version(instance)
+            elif app_name == 'Mosquitto':
+                current_version = get_mosquitto_version(instance)
+            elif app_name == 'K3s':
+                current_version = get_k3s_current_version(instance)
+        elif check_current == 'mqtt':
+            if app_name == 'Zigbee2MQTT':
+                current_version = get_zigbee2mqtt_version(instance)
+        elif check_current == 'command':
+            if app_name == 'Kopia':
+                url = app.get('Target')
+                current_version = get_kopia_version(instance, url)
+        elif check_current == 'ssh':
+            # Handle server/hardware Linux version checks via SSH
+            target = app.get('Target')
+            if target:
+                server_info = check_server_status(instance, target)
+                if server_info:
+                    # Use kernel version as the "version" to track
+                    current_version = server_info['kernel']
+                    if check_latest == 'none':
+                        latest_version = server_info.get('latest_kernel', server_info['kernel'])
+                    
+                    # Update Category with the OS name only if it's missing or empty
+                    current_category = self.df.at[index, 'Category']
+                    if pd.isna(current_category) or current_category == '' or str(current_category).strip() == '':
+                        self.df.at[index, 'Category'] = server_info['os_name']
+                    
+                else:
+                    current_version = "SSH Failed"
+                    if check_latest == 'none':
+                        latest_version = "Unknown"
+        
+        # Update notes if firmware update is available (OPNsense specific)
+        if firmware_update_available:
+            self.df.at[index, 'Notes'] = 'Firmware update available'
         
         # Update DataFrame
         if current_version:
@@ -212,7 +211,7 @@ class VersionManager:
         status = "Unknown"
         if current_version and latest_version:
             # Special handling for Tailscale multi-device checking
-            if check_method == 'tailscale_multi' and app_name == 'Tailscale':
+            if check_current == 'api' and app_name == 'Tailscale':
                 # For Tailscale, current_version contains devices needing updates count
                 if "0 need updates" in current_version:
                     status = "Up to Date"

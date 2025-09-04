@@ -21,16 +21,28 @@ Applications can have multiple instances tracked separately:
 - **Konnected**: car, workshop
 - **Traefik**: prod, mudderpi, morgspi
 
-### Check Methods
+### Check Methods (Split Architecture)
+The system uses two separate columns for version checking:
+
+#### Current Version Methods (`Check_Current`)
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
-| `api_github` | API call + GitHub releases | Home Assistant, ESPHome, Traefik |
-| `kubectl_github` | Kubernetes exec + GitHub | Telegraf |
-| `k8s_api_github` | Kubernetes API + GitHub | K3s |
-| `mqtt_github` | MQTT subscription + GitHub | Zigbee2MQTT |
-| `command_github` | Shell command + GitHub | Kopia |
-| `api_custom` | Custom API logic | OPNsense |
-| `project_version` | GitHub YAML project version | Konnected |
+| `api` | REST API calls for version info | Home Assistant, ESPHome, Traefik, OPNsense |
+| `ssh` | SSH connections to servers for kernel versions | Raspberry Pi, Ubuntu servers |
+| `kubectl` | Kubernetes operations (pod queries, node info) | Telegraf, VictoriaMetrics, Mosquitto, K3s |
+| `command` | Shell commands | Kopia |
+| `mqtt` | MQTT subscription | Zigbee2MQTT |
+
+#### Latest Version Methods (`Check_Latest`)
+| Method | Description | Example Applications |
+|--------|-------------|---------------------|
+| `github_release` | GitHub releases API | Home Assistant, ESPHome, Traefik, K3s |
+| `github_tag` | GitHub tags API | Konnected project versions |
+| `docker_hub` | Docker Hub/container tags | Mosquitto, Graylog |
+| `proxmox` | Proxmox-specific API | Proxmox VE |
+| `opnsense` | OPNsense firmware update logic | OPNsense |
+| `tailscale` | Tailscale device update tracking | Tailscale |
+| `none` | No latest version checking | Server kernels (use current) |
 
 ### Status Icons & Meanings
 - **✅ Up to Date**: Current matches latest
@@ -108,7 +120,7 @@ Applications can have multiple instances tracked separately:
 ## Development Patterns
 
 ### Adding New Applications
-1. Add entries to Excel with appropriate Check_Method and complete URL
+1. Add entries to Excel with appropriate `Check_Current` and `Check_Latest` methods plus complete URL
 2. Create or extend checker module in `checkers/` directory
 3. Import and integrate checker function in `version_manager.py`
 4. Test with `--app` flag
@@ -120,9 +132,10 @@ Applications can have multiple instances tracked separately:
 - **Import pattern**: Import checker functions in `version_manager.py`
 
 ### Excel Structure Preservation
-- Excel uses Target column
-- Store complete URLs with protocols in Excel
-- Maintain Name/Instance column pattern
+- **Column Structure**: Name, Instance, Type, Category, Target, GitHub, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
+- **Target Column**: Store complete URLs with protocols in Excel
+- **Name/Instance Pattern**: Maintain consistent naming structure
+- **Check Methods**: Use `Check_Current` for version retrieval method, `Check_Latest` for latest version source
 
 ### Error Handling
 - Print descriptive error messages with instance context
@@ -151,3 +164,4 @@ Applications can have multiple instances tracked separately:
 
 ## Documentation
 - **README.md**: Keep things general, do not include specific details about the local specific environment.
+- always automatically update md files before git commit and push

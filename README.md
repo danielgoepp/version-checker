@@ -6,11 +6,9 @@ A comprehensive Python-based system for tracking software versions across your i
 
 - **Excel Integration**: Uses "Goepp Homelab Master.xlsx" with Name/Instance structure
 - **Multi-Instance Support**: Track multiple instances of the same application (e.g., Kopia nodes)
-- **Multiple Check Methods**: 
-  - GitHub API for latest releases
-  - Local API calls (Home Assistant, Kubernetes)
-  - MQTT messaging (Zigbee2MQTT)
-  - Command execution (Kopia backup servers)
+- **Dual Check Method Architecture**: 
+  - **Current Version**: API calls, SSH connections, Kubernetes queries, MQTT subscriptions
+  - **Latest Version**: GitHub releases/tags, Docker Hub, custom APIs, Proxmox updates
 - **Visual Status Indicators**: Emoji icons for quick status recognition (✅⚠️📋❓)
 - **Automated Tracking**: Tracks current vs latest versions with timestamps
 - **Flexible Interface**: Command-line and interactive modes
@@ -81,23 +79,27 @@ The Excel file uses a single sheet with the following columns:
 - **Latest_Version**: Latest available version
 - **Status**: Up to Date, Update Available, etc.
 - **Last_Checked**: Timestamp of last check
-- **Check_Method**: How versions are retrieved (see methods below)
+- **Check_Current**: How current versions are retrieved (api, ssh, kubectl, etc.)
+- **Check_Latest**: How latest versions are retrieved (github_release, docker_hub, etc.)
 - **Notes**: Additional information (auto-populated for some checks)
 
 ## Supported Applications & Check Methods
 
-### Check Methods Available
-- **`api_github`**: API call + GitHub releases (Home Assistant, ESPHome, Traefik)
-- **`k8s_api_github`**: Kubernetes API + GitHub (K3s clusters)
-- **`kubectl_github`**: Kubernetes exec + GitHub (Telegraf, VictoriaMetrics)
-- **`kubectl_tags`**: Kubernetes with Docker tags (Mosquitto)
-- **`mqtt_github`**: MQTT subscription + GitHub (Zigbee2MQTT)
-- **`command_github`**: Shell command + GitHub (Kopia backup nodes)
-- **`project_version`**: GitHub YAML project version (Konnected)
-- **`api_custom`**: Custom API logic (OPNsense)
-- **`server_status`**: SSH-based server monitoring (Linux servers, Raspberry Pi)
-- **`api_proxmox`**: Proxmox VE API integration (Proxmox clusters)
-- **`tailscale_multi`**: Multi-device Tailscale API (Tailscale mesh networks)
+### Current Version Methods (`Check_Current`)
+- **`api`**: REST API calls (Home Assistant, ESPHome, Traefik, OPNsense, Proxmox, Tailscale, Graylog)
+- **`ssh`**: SSH connections to servers (Linux servers, Raspberry Pi kernel versions)
+- **`kubectl`**: Kubernetes operations - pod queries and node info (Telegraf, VictoriaMetrics, Mosquitto, K3s)
+- **`command`**: Shell commands (Kopia backup nodes)
+- **`mqtt`**: MQTT subscription (Zigbee2MQTT)
+
+### Latest Version Methods (`Check_Latest`)
+- **`github_release`**: GitHub releases API (Home Assistant, ESPHome, Traefik, K3s, etc.)
+- **`github_tag`**: GitHub tags API (Konnected project versions)
+- **`docker_hub`**: Docker Hub/container tags (Mosquitto, Graylog)
+- **`proxmox`**: Proxmox-specific API (Proxmox VE)
+- **`opnsense`**: OPNsense firmware update logic (OPNsense)
+- **`tailscale`**: Tailscale device update tracking (Tailscale)
+- **`none`**: No latest version checking (Server kernels use current)
 
 ### Application Types Supported
 - **Home Assistant** - Home automation platform with API monitoring
