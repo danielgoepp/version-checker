@@ -147,6 +147,7 @@ Applications can have multiple instances tracked separately:
 - **Virtual Environment**: Recreate with new Python versions for optimal compatibility
 - **SSL/TLS**: Uses system OpenSSL with urllib3 v2.5.0+ for secure HTTPS requests
 - **Code Organization**: Modular architecture with 451 total lines across all checker modules
+- **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use pandas with virtual environment: `source venv/bin/activate && python3 -c "import pandas as pd; df = pd.read_excel('filename')"`
 
 ## Documentation
 - **README.md**: Keep things general, do not include specific details about the local specific environment.

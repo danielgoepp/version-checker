@@ -19,6 +19,7 @@ from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
 from checkers.tailscale import check_tailscale_versions
 from checkers.traefik import get_traefik_version
+from checkers.graylog import get_graylog_current_version, get_graylog_latest_version
 import config
 
 class VersionManager:
@@ -193,6 +194,13 @@ class VersionManager:
                     
                     # Latest version shows count of devices up to date  
                     latest_version = f"{devices_up_to_date} up-to-date"
+        elif check_method == 'api_tags':
+            if app_name == 'Graylog':
+                url = app.get('Target')
+                if url:
+                    current_version = get_graylog_current_version(instance, url)
+                    if not latest_version:
+                        latest_version = get_graylog_latest_version()
         
         # Update DataFrame
         if current_version:

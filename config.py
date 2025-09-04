@@ -47,3 +47,14 @@ PROXMOX_API_TOKEN = get_required_env('PROXMOX_API_TOKEN', 'Proxmox API token (fo
 # Tailscale API credentials - REQUIRED for Tailscale checking
 TAILSCALE_API_KEY = get_optional_env('TAILSCALE_API_KEY', None, 'Tailscale API key for device management')
 TAILSCALE_TAILNET = get_optional_env('TAILSCALE_TAILNET', None, 'Tailscale tailnet name (e.g., example.com)')
+
+# Graylog API credentials - OPTIONAL (fallback to basic auth if not provided)
+GRAYLOG_TOKENS = {}
+# Individual instance tokens can be set in environment variables
+graylog_prod_token = get_optional_env('GRAYLOG_TOKEN_PROD', None, 'Graylog production API token')
+if graylog_prod_token:
+    GRAYLOG_TOKENS['graylog-prod'] = graylog_prod_token
+
+# Fallback basic auth credentials for Graylog
+GRAYLOG_USERNAME = get_optional_env('GRAYLOG_USERNAME', None, 'Graylog username for basic auth')
+GRAYLOG_PASSWORD = get_optional_env('GRAYLOG_PASSWORD', None, 'Graylog password for basic auth')
