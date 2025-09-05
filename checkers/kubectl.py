@@ -69,6 +69,38 @@ def get_telegraf_version(instance):
         return None
 
 
+def get_calico_version(instance):
+    """Get Calico version from Kubernetes daemonset"""
+    try:
+        # Get Calico node daemonset image version
+        describe_cmd = "kubectl describe daemonset calico-node -n calico-system | grep 'Image:' | grep calico/node"
+        describe_result = subprocess.run(
+            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
+        )
+
+        if describe_result.returncode == 0:
+            output = describe_result.stdout.strip()
+            # Look for version in image tag like "calico/node:v3.28.2"
+            version_match = re.search(r"calico/node:v?(\d+\.\d+\.\d+)", output)
+            if version_match:
+                version = version_match.group(1)
+                print(f"  {instance}: {version}")
+                return version
+            else:
+                print(f"  {instance}: Could not parse version from image: {output}")
+                return None
+        else:
+            print(f"  {instance}: Error getting calico-node daemonset description")
+            return None
+
+    except subprocess.TimeoutExpired:
+        print(f"  {instance}: Timeout getting version")
+        return None
+    except Exception as e:
+        print(f"  {instance}: Error getting version - {e}")
+        return None
+
+
 def get_mosquitto_version(instance):
     """Get Mosquitto MQTT broker version from Kubernetes pod"""
     try:
