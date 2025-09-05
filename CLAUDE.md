@@ -30,14 +30,14 @@ The system uses two separate columns for version checking:
 |--------|-------------|---------------------|
 | `api` | REST API calls for version info | Home Assistant, ESPHome, Traefik, OPNsense |
 | `ssh` | SSH connections showing OS + kernel | Raspberry Pi, Ubuntu servers |
-| `kubectl` | Kubernetes operations (pod queries, node info) | Telegraf, VictoriaMetrics, Mosquitto, K3s |
+| `kubectl` | Kubernetes operations (pod queries, node info) | Telegraf, VictoriaMetrics, Mosquitto, K3s, Calico, MetalLB |
 | `command` | Shell commands | Kopia |
 | `mqtt` | MQTT subscription | Zigbee2MQTT |
 
 #### Latest Version Methods (`Check_Latest`)
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
-| `github_release` | GitHub releases API | Home Assistant, ESPHome, Traefik, K3s |
+| `github_release` | GitHub releases API | Home Assistant, ESPHome, Traefik, K3s, Calico, MetalLB |
 | `github_tag` | GitHub tags API | Konnected project versions, Mosquitto |
 | `docker_hub` | Docker Hub/container tags | Graylog |
 | `ssh_apt` | SSH apt update checking | Ubuntu servers, Raspberry Pi |
