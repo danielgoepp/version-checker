@@ -159,3 +159,41 @@ def get_victoriametrics_version(instance):
     else:
         print(f"  {instance}: Unknown VictoriaMetrics instance type")
         return None
+
+
+def get_unpoller_version(instance):
+    """Get UniFi Poller version from Kubernetes pod"""
+    checker = KubernetesChecker(instance, namespace="unpoller")
+    pod_name = checker.find_pod("unpoller")
+    
+    if not pod_name:
+        return None
+    
+    output = checker.exec_pod_command(pod_name, "unpoller --version")
+    if output:
+        # Parse UniFi Poller version output (likely format: "unpoller version v2.15.4" or similar)
+        return checker.get_version_from_command_output(output, r"version\s+v?(\d+\.\d+\.\d+)")
+
+
+def get_certmanager_version(instance):
+    """Get cert-manager version from Kubernetes controller pod"""
+    checker = KubernetesChecker(instance, namespace="cert-manager")
+    pod_name = checker.find_pod("cert-manager-")
+    
+    if not pod_name:
+        return None
+    
+    # Get version from pod description (labels contain version info)
+    description = checker.describe_resource("pod", pod_name)
+    if description:
+        # Look for app.kubernetes.io/version label which contains the version
+        import re
+        version_match = re.search(r'app\.kubernetes\.io/version=v?(\d+\.\d+\.\d+)', description)
+        if version_match:
+            return version_match.group(1)
+        
+        # Fallback: try to get from image tag
+        image_checker = ImageVersionChecker(instance, namespace="cert-manager")
+        return image_checker.get_image_version_from_description(description, "cert-manager-controller")
+    
+    return None

@@ -14,7 +14,7 @@ from checkers.opnsense import get_opnsense_version
 from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
-from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version
+from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version
 from checkers.postgres import get_cnpg_operator_version, get_postgres_version
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
@@ -214,6 +214,10 @@ class VersionManager:
                 current_version = get_pgadmin_version(instance)
             elif app_name == 'Grafana':
                 current_version = get_grafana_version(instance)
+            elif app_name == 'UniFi Poller':
+                current_version = get_unpoller_version(instance)
+            elif app_name == 'cert-manager':
+                current_version = get_certmanager_version(instance)
             elif app_name == 'K3s':
                 current_version = get_k3s_current_version(instance)
         elif check_current == 'mqtt':
