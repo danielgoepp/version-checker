@@ -21,6 +21,7 @@ Applications can have multiple instances tracked separately:
 - **Telegraf**: vm, graylog
 - **Konnected**: car, workshop
 - **Traefik**: prod, mudderpi, morgspi
+- **PostgreSQL**: grafana-prod, hertzbeat-prod, homeassistant-prod (CNPG clusters)
 
 ### Check Methods (Split Architecture)
 The system uses two separate columns for version checking:
@@ -30,15 +31,15 @@ The system uses two separate columns for version checking:
 |--------|-------------|---------------------|
 | `api` | REST API calls for version info | Home Assistant, ESPHome, Traefik, OPNsense |
 | `ssh` | SSH connections showing OS + kernel | Raspberry Pi, Ubuntu servers |
-| `kubectl` | Kubernetes operations (pod queries, node info) | Telegraf, VictoriaMetrics, Mosquitto, K3s, Calico, MetalLB, Alertmanager |
+| `kubectl` | Kubernetes operations (pod queries, node info) | Telegraf, VictoriaMetrics, Mosquitto, K3s, Calico, MetalLB, Alertmanager, CloudNativePG, PostgreSQL, pgAdmin, Grafana |
 | `command` | Shell commands | Kopia |
 | `mqtt` | MQTT subscription | Zigbee2MQTT |
 
 #### Latest Version Methods (`Check_Latest`)
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
-| `github_release` | GitHub releases API | Home Assistant, ESPHome, Traefik, K3s, Calico, MetalLB, Alertmanager |
-| `github_tag` | GitHub tags API | Konnected project versions, Mosquitto |
+| `github_release` | GitHub releases API | Home Assistant, ESPHome, Traefik, K3s, Calico, MetalLB, Alertmanager, Grafana |
+| `github_tag` | GitHub tags API | Konnected project versions, Mosquitto, pgAdmin |
 | `docker_hub` | Docker Hub/container tags | Graylog |
 | `ssh_apt` | SSH apt update checking | Ubuntu servers, Raspberry Pi |
 | `proxmox` | Proxmox-specific API | Proxmox VE |
@@ -63,6 +64,8 @@ The system uses two separate columns for version checking:
   - `checkers/github.py`: GitHub release API functions
   - `checkers/home_assistant.py`: Home Assistant API integration
   - `checkers/kubectl.py`: Kubernetes pod version extraction
+  - `checkers/postgres.py`: CloudNativePG operator and PostgreSQL database versions
+  - `checkers/grafana.py`: Grafana version via internal API using kubectl exec
   - `checkers/traefik.py`: Traefik API endpoint version checking
   - `checkers/utils.py`: Shared HTTP request helper
 
@@ -104,6 +107,10 @@ The system uses two separate columns for version checking:
 - **K3s**: `v1.33.2+k3s1` → `1.33.2+k3s1`
 - **Kopia**: Strip build info after version number
 - **ESPHome**: JSON response with version field
+- **pgAdmin**: `REL-9_8` → `9.8` (GitHub tag format conversion)
+- **PostgreSQL**: `PostgreSQL 17.2 (Debian...)` → `17.2` (SQL query parsing)
+- **CloudNativePG**: `ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0` → `1.25.0` (container image tag)
+- **Grafana**: `{"version":"12.0.2",...}` → `12.0.2` (internal health API JSON parsing)
 
 ### MQTT Version Discovery
 - **Topic pattern**: `{instance}/bridge/info`
@@ -131,6 +138,10 @@ The system uses two separate columns for version checking:
 # Check specific application (all instances)
 ./check_versions.py --app "home assistant"
 ./check_versions.py --app "kopia"
+./check_versions.py --app "CloudNativePG"
+./check_versions.py --app "PostgreSQL"
+./check_versions.py --app "pgAdmin"
+./check_versions.py --app "Grafana"
 ```
 
 ## Development Patterns

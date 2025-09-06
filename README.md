@@ -88,13 +88,13 @@ The Excel file uses a single sheet with the following columns:
 ### Current Version Methods (`Check_Current`)
 - **`api`**: REST API calls (Home Assistant, ESPHome, Traefik, OPNsense, Proxmox, Tailscale, Graylog)
 - **`ssh`**: SSH connections to servers (Linux servers show OS + kernel, e.g. "Ubuntu 24.04.3 LTS - 6.8.0-79-generic")
-- **`kubectl`**: Kubernetes operations - pod queries and node info (Telegraf, VictoriaMetrics, Mosquitto, K3s, Calico, MetalLB, Alertmanager)
+- **`kubectl`**: Kubernetes operations - pod queries and node info (Telegraf, VictoriaMetrics, Mosquitto, K3s, Calico, MetalLB, Alertmanager, CloudNativePG, PostgreSQL, pgAdmin, Grafana)
 - **`command`**: Shell commands (Kopia backup nodes)
 - **`mqtt`**: MQTT subscription (Zigbee2MQTT)
 
 ### Latest Version Methods (`Check_Latest`)
-- **`github_release`**: GitHub releases API (Home Assistant, ESPHome, Traefik, K3s, Calico, MetalLB, Alertmanager, etc.)
-- **`github_tag`**: GitHub tags API (Konnected project versions, Mosquitto)
+- **`github_release`**: GitHub releases API (Home Assistant, ESPHome, Traefik, K3s, Calico, MetalLB, Alertmanager, Grafana, etc.)
+- **`github_tag`**: GitHub tags API (Konnected project versions, Mosquitto, pgAdmin)
 - **`docker_hub`**: Docker Hub/container tags (Graylog)
 - **`ssh_apt`**: SSH-based apt package checking for kernel updates (Ubuntu, Raspberry Pi)
 - **`proxmox`**: Proxmox-specific API (Proxmox VE)
@@ -122,6 +122,10 @@ The Excel file uses a single sheet with the following columns:
 - **Calico** - Kubernetes networking and security
 - **MetalLB** - Kubernetes load balancer
 - **Alertmanager** - Prometheus alert handling
+- **CloudNativePG** - PostgreSQL Kubernetes operator
+- **PostgreSQL** - Database instances in CNPG clusters
+- **pgAdmin** - PostgreSQL administration interface
+- **Grafana** - Monitoring and visualization platform
 - **Linux Servers** - Ubuntu/Raspberry Pi kernel monitoring with apt-based update detection
 - **Tailscale** - VPN mesh network device tracking
 
@@ -136,6 +140,7 @@ Applications that run on multiple servers are tracked separately by instance:
 - **K3s**: Kubernetes clusters (k3s-prod, k3s-morgspi, k3s-mudderpi)
 - **Proxmox VE**: Cluster nodes (pve11, pve12, pve13, pve15)
 - **VictoriaMetrics**: Multiple components (vmsingle, vmagent, operator)
+- **PostgreSQL**: Multiple database instances (grafana-prod, hertzbeat-prod, homeassistant-prod)
 - **Ubuntu/Raspberry Pi**: Multiple servers and devices with individual kernel tracking
 
 Each instance gets its own row in the Excel file with individual version tracking.
@@ -158,6 +163,8 @@ Each instance gets its own row in the Excel file with individual version trackin
   - **`github.py`** - GitHub release API functions
   - **`home_assistant.py`** - Home Assistant API integration
   - **`kubectl.py`** - Kubernetes pod version extraction
+  - **`postgres.py`** - CloudNativePG operator and PostgreSQL database versions
+  - **`grafana.py`** - Grafana version via internal API using kubectl exec
   - **`traefik.py`** - Traefik API endpoint version checking
   - **`graylog.py`** - Graylog API integration with Docker Hub version tracking
   - **`linux_kernel.py`** - Unified Linux kernel update checking via SSH and apt

@@ -77,6 +77,70 @@ def get_graylog_latest_version_from_repo(repository):
             return version
     return None
 
+def get_postgresql_latest_version_from_ghcr(repository):
+    """Get latest PostgreSQL version from GitHub Container Registry packages API"""
+    try:
+        import requests
+        
+        # Use GitHub Packages API to get container versions
+        # Format: https://api.github.com/orgs/{org}/packages/container/{package}/versions
+        org, package_name = repository.split('/')
+        
+        # For cloudnative-pg/postgres-containers, the package name is "postgresql"
+        if package_name == "postgres-containers":
+            package_name = "postgresql"
+        
+        api_url = f"https://api.github.com/orgs/{org}/packages/container/{package_name}/versions"
+        
+        # Try with GitHub token if available
+        headers = {'Accept': 'application/vnd.github.v3+json'}
+        if hasattr(config, 'GITHUB_TOKEN') and config.GITHUB_TOKEN:
+            headers['Authorization'] = f'token {config.GITHUB_TOKEN}'
+        
+        response = requests.get(api_url, headers=headers, timeout=10)
+        
+        if response.status_code == 401:
+            print("  GitHub Container Registry API requires authentication for latest PostgreSQL versions")
+            return None
+        elif response.status_code != 200:
+            print(f"  Error accessing container registry: {response.status_code}")
+            return None
+        
+        data = response.json()
+        
+        if data and isinstance(data, list):
+            # Extract version tags from container registry
+            version_tags = []
+            for version_info in data:
+                if 'metadata' in version_info and 'container' in version_info['metadata']:
+                    tags = version_info['metadata']['container'].get('tags', [])
+                    for tag in tags:
+                        # Look for simple version patterns like "17.2", "16.4"
+                        if tag.replace(".", "").replace("-", "").isdigit() and "." in tag:
+                            # Filter out tags with suffixes like "17.2-bookworm"
+                            if not any(suffix in tag.lower() for suffix in ['bookworm', 'bullseye', 'alpine', 'minimal', 'standard']):
+                                version_tags.append(tag)
+            
+            if version_tags:
+                # Remove duplicates and sort versions numerically
+                unique_versions = list(set(version_tags))
+                def version_key(v):
+                    # Handle versions like "17.2" and "16.4.1"
+                    parts = v.split('.')
+                    return [int(p) for p in parts if p.isdigit()]
+                
+                try:
+                    sorted_versions = sorted(unique_versions, key=version_key, reverse=True)
+                    return sorted_versions[0]
+                except (ValueError, IndexError):
+                    pass
+        
+        return None
+        
+    except Exception as e:
+        print(f"  Error getting PostgreSQL latest version from GHCR: {e}")
+        return None
+
 def check_graylog_versions(apps_df):
     """Check versions for all Graylog instances"""
     graylog_apps = apps_df[apps_df['Name'].str.lower() == 'graylog']

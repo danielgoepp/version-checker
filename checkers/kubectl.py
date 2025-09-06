@@ -214,6 +214,139 @@ def get_mosquitto_version(instance):
         return None
 
 
+def get_opensearch_version(instance):
+    """Get OpenSearch version from Kubernetes pod API"""
+    try:
+        # Execute curl to OpenSearch API in the pod
+        version_cmd = "kubectl exec opensearch2-cluster-master-0 -n opensearch -- curl -s http://localhost:9200"
+        version_result = subprocess.run(
+            version_cmd, shell=True, capture_output=True, text=True, timeout=15
+        )
+
+        if version_result.returncode == 0:
+            # Parse JSON output to extract version number
+            import json
+            try:
+                output = version_result.stdout.strip()
+                data = json.loads(output)
+                if 'version' in data and 'number' in data['version']:
+                    version = data['version']['number']
+                    print(f"  {instance}: {version}")
+                    return version
+                else:
+                    print(f"  {instance}: Version field not found in API response")
+                    return None
+            except json.JSONDecodeError:
+                print(f"  {instance}: Could not parse JSON response: {output}")
+                return None
+        else:
+            print(f"  {instance}: Error executing OpenSearch API call: {version_result.stderr}")
+            return None
+
+    except subprocess.TimeoutExpired:
+        print(f"  {instance}: Timeout getting version")
+        return None
+    except Exception as e:
+        print(f"  {instance}: Error getting version - {e}")
+        return None
+
+
+def get_mongodb_version(instance):
+    """Get MongoDB version from Kubernetes pod command"""
+    try:
+        # Execute mongod --version in the MongoDB pod
+        version_cmd = "kubectl exec mongodb-0 -n mongodb -c mongod -- mongod --version"
+        version_result = subprocess.run(
+            version_cmd, shell=True, capture_output=True, text=True, timeout=15
+        )
+
+        if version_result.returncode == 0:
+            # Parse output like "db version v6.0.8"
+            output = version_result.stdout.strip()
+            version_match = re.search(r"db version v(\d+\.\d+\.\d+)", output)
+            if version_match:
+                version = version_match.group(1)
+                print(f"  {instance}: {version}")
+                return version
+            else:
+                print(f"  {instance}: Could not parse version from: {output}")
+                return None
+        else:
+            print(f"  {instance}: Error executing mongod --version: {version_result.stderr}")
+            return None
+
+    except subprocess.TimeoutExpired:
+        print(f"  {instance}: Timeout getting version")
+        return None
+    except Exception as e:
+        print(f"  {instance}: Error getting version - {e}")
+        return None
+
+
+def get_fluentbit_version(instance):
+    """Get Fluent Bit version from Kubernetes daemonset image"""
+    try:
+        # Get Fluent Bit daemonset image version
+        describe_cmd = "kubectl describe daemonset fluent-bit -n fluent-bit | grep 'Image:' | grep fluent-bit"
+        describe_result = subprocess.run(
+            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
+        )
+
+        if describe_result.returncode == 0:
+            output = describe_result.stdout.strip()
+            # Look for version in image tag like "cr.fluentbit.io/fluent/fluent-bit:3.2.2"
+            version_match = re.search(r"fluent-bit:v?(\d+\.\d+\.\d+)", output)
+            if version_match:
+                version = version_match.group(1)
+                print(f"  {instance}: {version}")
+                return version
+            else:
+                print(f"  {instance}: Could not parse version from image: {output}")
+                return None
+        else:
+            print(f"  {instance}: Error getting fluent-bit daemonset description")
+            return None
+
+    except subprocess.TimeoutExpired:
+        print(f"  {instance}: Timeout getting version")
+        return None
+    except Exception as e:
+        print(f"  {instance}: Error getting version - {e}")
+        return None
+
+
+def get_pgadmin_version(instance):
+    """Get pgAdmin version from Kubernetes deployment image"""
+    try:
+        # Get pgAdmin deployment image version
+        describe_cmd = "kubectl describe deployment pgadmin-pgadmin4 -n pgadmin | grep 'Image:' | grep pgadmin4"
+        describe_result = subprocess.run(
+            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
+        )
+
+        if describe_result.returncode == 0:
+            output = describe_result.stdout.strip()
+            # Look for version in image tag like "docker.io/dpage/pgadmin4:9.5"
+            version_match = re.search(r"pgadmin4:v?(\d+\.\d+)", output)
+            if version_match:
+                version = version_match.group(1)
+                print(f"  {instance}: {version}")
+                return version
+            else:
+                print(f"  {instance}: Could not parse version from image: {output}")
+                return None
+        else:
+            print(f"  {instance}: Error getting pgadmin deployment description")
+            return None
+
+    except subprocess.TimeoutExpired:
+        print(f"  {instance}: Timeout getting version")
+        return None
+    except Exception as e:
+        print(f"  {instance}: Error getting version - {e}")
+        return None
+
+
 def get_victoriametrics_version(instance):
     """Get VictoriaMetrics version from Kubernetes pod for a specific instance"""
     try:

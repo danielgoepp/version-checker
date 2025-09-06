@@ -14,12 +14,15 @@ from checkers.opnsense import get_opnsense_version
 from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
-from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version
+from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version
+from checkers.postgres import get_cnpg_operator_version, get_postgres_version
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
 from checkers.tailscale import check_tailscale_versions
 from checkers.traefik import get_traefik_version
-from checkers.graylog import get_graylog_current_version, get_graylog_latest_version_from_repo
+from checkers.graylog import get_graylog_current_version, get_graylog_latest_version_from_repo, get_postgresql_latest_version_from_ghcr
+from checkers.grafana import get_grafana_version
+from checkers.mongodb import get_mongodb_latest_version
 import config
 
 class VersionManager:
@@ -85,11 +88,23 @@ class VersionManager:
         if check_latest == 'github_release' and repository and pd.notna(repository):
             latest_version = get_github_latest_version(repository)
         elif check_latest == 'github_tag' and repository and pd.notna(repository):
-            latest_version = get_github_latest_tag(repository)
+            if app_name == 'MongoDB':
+                latest_version = get_mongodb_latest_version()
+            elif app_name == 'pgAdmin':
+                raw_tag = get_github_latest_tag(repository)
+                if raw_tag and raw_tag.startswith('REL-'):
+                    # Convert REL-9_8 to 9.8
+                    latest_version = raw_tag.replace('REL-', '').replace('_', '.')
+                else:
+                    latest_version = raw_tag
+            else:
+                latest_version = get_github_latest_tag(repository)
         elif check_latest == 'docker_hub' and repository and pd.notna(repository):
             # Use Repository field for docker_hub method - no hardcoding
             if app_name == 'Graylog':
                 latest_version = get_graylog_latest_version_from_repo(repository)
+            elif app_name == 'PostgreSQL':
+                latest_version = get_postgresql_latest_version_from_ghcr(repository)
             # No fallback - if docker_hub method fails, we don't get data
         elif check_latest == 'proxmox' and app_name == 'Proxmox VE':
             latest_version = get_proxmox_latest_version()
@@ -175,6 +190,20 @@ class VersionManager:
                 current_version = get_metallb_version(instance)
             elif app_name == 'Alertmanager':
                 current_version = get_alertmanager_version(instance)
+            elif app_name == 'Fluent Bit':
+                current_version = get_fluentbit_version(instance)
+            elif app_name == 'MongoDB':
+                current_version = get_mongodb_version(instance)
+            elif app_name == 'OpenSearch':
+                current_version = get_opensearch_version(instance)
+            elif app_name == 'CloudNativePG':
+                current_version = get_cnpg_operator_version(instance)
+            elif app_name == 'PostgreSQL':
+                current_version = get_postgres_version(instance)
+            elif app_name == 'pgAdmin':
+                current_version = get_pgadmin_version(instance)
+            elif app_name == 'Grafana':
+                current_version = get_grafana_version(instance)
             elif app_name == 'K3s':
                 current_version = get_k3s_current_version(instance)
         elif check_current == 'mqtt':
