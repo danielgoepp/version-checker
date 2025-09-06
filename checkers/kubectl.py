@@ -197,3 +197,17 @@ def get_certmanager_version(instance):
         return image_checker.get_image_version_from_description(description, "cert-manager-controller")
     
     return None
+
+
+def get_postfix_version(instance):
+    """Get Postfix version from Kubernetes pod"""
+    checker = KubernetesChecker(instance, namespace="postfix")
+    pod_name = checker.find_pod("postfix")
+    
+    if not pod_name:
+        return None
+    
+    output = checker.exec_pod_command(pod_name, "postconf mail_version")
+    if output:
+        # Parse "mail_version = 3.7.11" format
+        return checker.get_version_from_command_output(output, r"mail_version = (\d+\.\d+\.\d+)")

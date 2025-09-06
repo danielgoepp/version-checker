@@ -14,7 +14,7 @@ from checkers.opnsense import get_opnsense_version
 from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
-from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version
+from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version, get_postfix_version
 from checkers.postgres import get_cnpg_operator_version, get_postgres_version
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
@@ -28,6 +28,8 @@ from checkers.unifi_network import get_unifi_network_version
 from checkers.samba import get_samba_version, get_latest_samba_version
 from checkers.syncthing import check_syncthing_current_version
 from checkers.awx import check_awx_current_version
+from checkers.postfix import get_postfix_latest_version_from_dockerhub
+from checkers.dockerhub import get_dockerhub_latest_version
 import config
 
 class VersionManager:
@@ -111,6 +113,8 @@ class VersionManager:
                 latest_version = get_graylog_latest_version_from_repo(dockerhub_repo)
             elif app_name == 'PostgreSQL':
                 latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
+            elif app_name == 'Postfix':
+                latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
             # No fallback - if docker_hub method fails, we don't get data
         elif check_latest == 'proxmox' and app_name == 'Proxmox VE':
             latest_version = get_proxmox_latest_version(include_ceph=True)
@@ -232,6 +236,8 @@ class VersionManager:
                 current_version = get_certmanager_version(instance)
             elif app_name == 'K3s':
                 current_version = get_k3s_current_version(instance)
+            elif app_name == 'Postfix':
+                current_version = get_postfix_version(instance)
         elif check_current == 'mqtt':
             if app_name == 'Zigbee2MQTT':
                 current_version = get_zigbee2mqtt_version(instance)
