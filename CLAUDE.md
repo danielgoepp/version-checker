@@ -3,6 +3,9 @@
 ## Overview
 Excel-based software version monitoring system with multi-instance support for tracking various applications across the Goepp Lab infrastructure.
 
+
+Note: This is for my specific infrastructure only, not a general purpose app. The only reason I make this a public repository is for reference only. If one were to take this code an try to make it work for them, significant changes would be needed to customize it. Unless of course you run the exact tech stack in the extact same way I do. If you are interested and want a copy of the Excel doc that goes with this, let me know and I would be happy to provide it.
+
 ## Architecture
 - **Language**: Python 3.13.7 with pandas, requests, paho-mqtt libraries
 - **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure and Repository field
@@ -29,23 +32,23 @@ The system uses two separate columns for version checking:
 #### Current Version Methods (`Check_Current`)
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
-| `api` | REST API calls for version info | Home Assistant, ESPHome, Traefik, OPNsense |
-| `ssh` | SSH connections showing OS + kernel | Raspberry Pi, Ubuntu servers |
-| `kubectl` | Kubernetes operations (pod queries, node info) | Telegraf, VictoriaMetrics, Mosquitto, K3s, Calico, MetalLB, Alertmanager, CloudNativePG, PostgreSQL, pgAdmin, Grafana |
-| `command` | Shell commands | Kopia |
-| `mqtt` | MQTT subscription | Zigbee2MQTT |
+| `api` | REST API calls for version info | Web-based applications with API endpoints |
+| `ssh` | SSH connections showing OS + kernel | Remote servers and systems |
+| `kubectl` | Kubernetes operations (pod queries, node info) | Containerized applications in Kubernetes |
+| `command` | Shell commands | Applications with command-line version output |
+| `mqtt` | MQTT subscription | Applications publishing version via MQTT |
 
 #### Latest Version Methods (`Check_Latest`)
 | Method | Description | Example Applications |
 |--------|-------------|---------------------|
-| `github_release` | GitHub releases API | Home Assistant, ESPHome, Traefik, K3s, Calico, MetalLB, Alertmanager, Grafana |
-| `github_tag` | GitHub tags API | Konnected project versions, Mosquitto, pgAdmin |
-| `docker_hub` | Docker Hub/container tags | Graylog |
-| `ssh_apt` | SSH apt update checking | Ubuntu servers, Raspberry Pi |
-| `proxmox` | Proxmox-specific API | Proxmox VE |
-| `opnsense` | OPNsense firmware update logic | OPNsense |
-| `tailscale` | Tailscale device update tracking | Tailscale |
-| `none` | No latest version checking | Legacy method |
+| `github_release` | GitHub releases API | Open source projects with GitHub releases |
+| `github_tag` | GitHub tags API | Projects using Git tags for versioning |
+| `docker_hub` | Docker Hub/container tags | Containerized applications on Docker Hub |
+| `ssh_apt` | SSH apt update checking | Linux systems with APT package manager |
+| `proxmox` | Proxmox-specific API | Proxmox virtualization platforms |
+| `opnsense` | OPNsense firmware update logic | OPNsense firewall systems |
+| `tailscale` | Tailscale device update tracking | Tailscale VPN networks |
+| `none` | No latest version checking | Applications without available update sources |
 
 ### Status Icons & Meanings
 - **✅ Up to Date**: Current matches latest
@@ -61,29 +64,26 @@ The system uses two separate columns for version checking:
 - **Shared utilities**: Common HTTP helper functions in `checkers/utils.py`
 - **Clean imports**: Main manager imports from modular checkers
 - **Examples**:
-  - `checkers/github.py`: GitHub release API functions
-  - `checkers/home_assistant.py`: Home Assistant API integration
-  - `checkers/kubectl.py`: Kubernetes pod version extraction
-  - `checkers/postgres.py`: CloudNativePG operator and PostgreSQL database versions
-  - `checkers/grafana.py`: Grafana version via internal API using kubectl exec
-  - `checkers/traefik.py`: Traefik API endpoint version checking
-  - `checkers/utils.py`: Shared HTTP request helper
+  - `checkers/base.py`: Base classes (KubernetesChecker, APIChecker) for modular version checking
+  - `checkers/github.py`: GitHub release and tag API functions
+  - `checkers/kubectl.py`: Kubernetes-based version checkers using modular base classes
+  - `checkers/utils.py`: Shared utilities (HTTP requests, version parsing, error handling)
 
 ## Configuration Patterns
 
 ### Repository Field Management
 - **Excel stores repository paths**: Repository paths for GitHub, Docker Hub, etc. in Repository column  
-- **Direct usage**: No hardcoding in docker_hub method
+- **Direct usage**: Repository field values used by checkers without hardcoding
 - **Examples**:
-  - Excel Repository: `Graylog2/graylog-docker` 
-  - Code: Uses Repository field value directly
+  - GitHub repos: `owner/repository-name` format
+  - Docker Hub: `organization/image-name` format
 
 ### URL Handling  
 - **Excel stores complete URLs**: Full URLs with https:// protocols in Target column
-- **Direct usage**: No protocol manipulation needed in code
+- **Direct usage**: URLs used directly by API checkers without modification
 - **Examples**:
-  - Excel: `https://homeassistant-prod.goepp.net`
-  - Code: Direct usage without modification
+  - Format: `https://hostname.domain.com` or `https://ip-address:port`
+  - Usage: Passed directly to HTTP request functions
 
 ### Credentials Management
 - **Config.py**: Centralized credential storage
@@ -193,4 +193,4 @@ The system uses two separate columns for version checking:
 
 ## Documentation
 - **README.md**: Keep things general, do not include specific details about the local specific environment.
-- always automatically update md files before git commit and push
+- **Auto-update requirement**: ALWAYS update README.md and other documentation files to reflect code changes before any git commit and push operation

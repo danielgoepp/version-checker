@@ -4,11 +4,12 @@ A comprehensive Python-based system for tracking software versions across your i
 
 ## Features
 
-- **Excel Integration**: Uses "Goepp Homelab Master.xlsx" with Name/Instance structure
-- **Multi-Instance Support**: Track multiple instances of the same application (e.g., Kopia nodes)
+- **Excel Integration**: Uses Excel database with Name/Instance structure for data management
+- **Multi-Instance Support**: Track multiple instances of the same application across environments
+- **Modular Architecture**: Base classes (KubernetesChecker, APIChecker) for efficient code reuse
 - **Dual Check Method Architecture**: 
   - **Current Version**: API calls, SSH connections, Kubernetes queries, MQTT subscriptions
-  - **Latest Version**: GitHub releases/tags, Docker Hub, custom APIs, Proxmox updates
+  - **Latest Version**: GitHub releases/tags, Docker Hub, custom APIs, platform updates
 - **Visual Status Indicators**: Emoji icons for quick status recognition (✅⚠️📋❓)
 - **Automated Tracking**: Tracks current vs latest versions with timestamps
 - **Flexible Interface**: Command-line and interactive modes
@@ -50,8 +51,7 @@ python3 update_excel.py
 ./check_versions.py --list
 
 # Check specific application (checks all instances)
-./check_versions.py --app "Kopia"  # Checks ssd, hdd, b2
-./check_versions.py --app "Home Assistant"  # Single instance
+./check_versions.py --app "ApplicationName"  # Checks all instances
 
 # Interactive mode (default)
 ./check_versions.py
@@ -83,67 +83,42 @@ The Excel file uses a single sheet with the following columns:
 - **Check_Latest**: How latest versions are retrieved (github_release, docker_hub, etc.)
 - **Notes**: Additional information (auto-populated for some checks)
 
-## Supported Applications & Check Methods
+## Supported Check Methods
 
 ### Current Version Methods (`Check_Current`)
-- **`api`**: REST API calls (Home Assistant, ESPHome, Traefik, OPNsense, Proxmox, Tailscale, Graylog)
-- **`ssh`**: SSH connections to servers (Linux servers show OS + kernel, e.g. "Ubuntu 24.04.3 LTS - 6.8.0-79-generic")
-- **`kubectl`**: Kubernetes operations - pod queries and node info (Telegraf, VictoriaMetrics, Mosquitto, K3s, Calico, MetalLB, Alertmanager, CloudNativePG, PostgreSQL, pgAdmin, Grafana)
-- **`command`**: Shell commands (Kopia backup nodes)
-- **`mqtt`**: MQTT subscription (Zigbee2MQTT)
+- **`api`**: REST API calls for web-based applications with API endpoints
+- **`ssh`**: SSH connections to remote servers and systems (shows OS + kernel info)
+- **`kubectl`**: Kubernetes operations for containerized applications (pod queries, node info)
+- **`command`**: Shell commands for applications with command-line version output
+- **`mqtt`**: MQTT subscription for applications publishing version via MQTT
 
 ### Latest Version Methods (`Check_Latest`)
-- **`github_release`**: GitHub releases API (Home Assistant, ESPHome, Traefik, K3s, Calico, MetalLB, Alertmanager, Grafana, etc.)
-- **`github_tag`**: GitHub tags API (Konnected project versions, Mosquitto, pgAdmin)
-- **`docker_hub`**: Docker Hub/container tags (Graylog)
-- **`ssh_apt`**: SSH-based apt package checking for kernel updates (Ubuntu, Raspberry Pi)
-- **`proxmox`**: Proxmox-specific API (Proxmox VE)
-- **`opnsense`**: OPNsense firmware update logic (OPNsense)
-- **`tailscale`**: Tailscale device update tracking (Tailscale)
-- **`none`**: No latest version checking (legacy method)
+- **`github_release`**: GitHub releases API for open source projects with GitHub releases
+- **`github_tag`**: GitHub tags API for projects using Git tags for versioning
+- **`docker_hub`**: Docker Hub/container tags for containerized applications on Docker Hub
+- **`ssh_apt`**: SSH apt update checking for Linux systems with APT package manager
+- **`proxmox`**: Proxmox-specific API for Proxmox virtualization platforms
+- **`opnsense`**: OPNsense firmware update logic for OPNsense firewall systems
+- **`tailscale`**: Tailscale device update tracking for Tailscale VPN networks
+- **`none`**: No latest version checking for applications without available update sources
 
 ### Application Types Supported
-- **Home Assistant** - Home automation platform with API monitoring
-- **Kubernetes (K3s)** - Lightweight Kubernetes clusters with pod monitoring
-- **Kopia** - Backup software with multi-node support (ssd, hdd, b2)
-- **Traefik** - Reverse proxy and load balancer across environments
-- **Zigbee2MQTT** - Zigbee to MQTT bridge with multiple coordinators
-- **ESPHome** - ESP8266/ESP32 firmware platform
-- **Telegraf** - Metrics collection agent across infrastructure
-- **VictoriaMetrics** - Time series database components (vmsingle, vmagent, operator)
-- **Konnected** - Security system integration panels
-- **Mosquitto** - MQTT broker
-- **OPNsense** - Firewall/router firmware
-- **Proxmox VE** - Virtualization platform across cluster nodes
-- **Graylog** - Log management platform with Docker Hub version tracking
-- **MongoDB** - Document database
-- **OpenSearch** - Search and analytics engine
-- **Fluent Bit** - Log processor and forwarder
-- **Calico** - Kubernetes networking and security
-- **MetalLB** - Kubernetes load balancer
-- **Alertmanager** - Prometheus alert handling
-- **CloudNativePG** - PostgreSQL Kubernetes operator
-- **PostgreSQL** - Database instances in CNPG clusters
-- **pgAdmin** - PostgreSQL administration interface
-- **Grafana** - Monitoring and visualization platform
-- **Linux Servers** - Ubuntu/Raspberry Pi kernel monitoring with apt-based update detection
-- **Tailscale** - VPN mesh network device tracking
+- **Web Applications** - Applications with REST API endpoints
+- **Containerized Applications** - Kubernetes-deployed applications with pod monitoring
+- **Backup Software** - Multi-node backup systems with instance tracking
+- **Network Infrastructure** - Reverse proxies, load balancers, and networking components
+- **IoT Platforms** - Device management and automation platforms
+- **Database Systems** - Document databases, time-series databases, and operators
+- **Monitoring & Logging** - Metrics collection, log processing, and visualization platforms
+- **Security Systems** - Firewalls, VPN networks, and access control systems
+- **Virtualization Platforms** - Hypervisors and cluster management systems
+- **Linux Systems** - Server and device kernel monitoring with package management
 
-### Multi-Instance Applications
-Applications that run on multiple servers are tracked separately by instance:
-- **Kopia**: Backup instances (ssd, hdd, b2) with separate version tracking
-- **Traefik**: Load balancer instances (prod, morgspi, mudderpi) across different environments
-- **Home Assistant**: Multiple installations (prod, morgspi, mudderpi)
-- **Zigbee2MQTT**: Multiple coordinators (zigbee11, zigbee15)
-- **Telegraf**: Multiple monitoring agents (vm, graylog)
-- **Konnected**: Multiple alarm panels (car, workshop)
-- **K3s**: Kubernetes clusters (k3s-prod, k3s-morgspi, k3s-mudderpi)
-- **Proxmox VE**: Cluster nodes (pve11, pve12, pve13, pve15)
-- **VictoriaMetrics**: Multiple components (vmsingle, vmagent, operator)
-- **PostgreSQL**: Multiple database instances (grafana-prod, hertzbeat-prod, homeassistant-prod)
-- **Ubuntu/Raspberry Pi**: Multiple servers and devices with individual kernel tracking
-
-Each instance gets its own row in the Excel file with individual version tracking.
+### Multi-Instance Support
+Applications that run across multiple environments are tracked separately by instance:
+- Each instance gets its own row in the Excel file with individual version tracking
+- Supports various instance types (production, staging, node-specific, environment-specific)
+- Instance names are configurable and can represent servers, environments, or components
 
 ## Security Notes
 
@@ -160,20 +135,11 @@ Each instance gets its own row in the Excel file with individual version trackin
 - **`requirements.txt`** - Python dependencies
 - **`config.py`** - Configuration and credentials (not committed to git)
 - **`checkers/`** - Directory containing modular version checker modules
-  - **`github.py`** - GitHub release API functions
-  - **`home_assistant.py`** - Home Assistant API integration
-  - **`kubectl.py`** - Kubernetes pod version extraction
-  - **`postgres.py`** - CloudNativePG operator and PostgreSQL database versions
-  - **`grafana.py`** - Grafana version via internal API using kubectl exec
-  - **`traefik.py`** - Traefik API endpoint version checking
-  - **`graylog.py`** - Graylog API integration with Docker Hub version tracking
-  - **`linux_kernel.py`** - Unified Linux kernel update checking via SSH and apt
-  - **`server_status.py`** - SSH-based server monitoring
-  - **`proxmox.py`** - Proxmox VE API integration
-  - **`tailscale.py`** - Multi-device Tailscale monitoring
-  - **`mongodb.py`** - MongoDB version checking
-  - **`utils.py`** - Shared HTTP request helpers
-  - And more specialized checkers for each application type
+  - **`base.py`** - Base classes (KubernetesChecker, APIChecker) for modular version checking
+  - **`github.py`** - GitHub release and tag API functions
+  - **`kubectl.py`** - Kubernetes-based version checkers using modular base classes
+  - **`utils.py`** - Shared utilities (HTTP requests, version parsing, error handling)
+  - Additional specialized checkers for specific application types and platforms
 - **`venv/`** - Virtual environment (not committed to git)
 
 ## Quick Start Example:
@@ -192,15 +158,15 @@ source venv/bin/activate
 ```
 Starting version check for all applications...
 ==================================================
-Checking Kopia-ssd...
-  ssd: 0.21.1
+Checking Application-instance1...
+  instance1: 1.2.3
   Status: ✅ Up to Date
 
-Checking Kopia-hdd...
-  hdd: 0.21.1  
+Checking Application-instance2...
+  instance2: 1.2.3  
   Status: ✅ Up to Date
 
-Checking Kopia-b2...
-  b2: 0.21.1
-  Status: ✅ Up to Date
+Checking Application-instance3...
+  instance3: 1.2.2
+  Status: ⚠️ Update Available
 ```
