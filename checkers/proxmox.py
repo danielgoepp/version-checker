@@ -2,8 +2,7 @@
 
 import json
 import requests
-from urllib3.exceptions import InsecureRequestWarning
-from .utils import http_get
+# No longer need utils import - using requests directly
 import config
 
 def get_proxmox_version(instance, url):
@@ -18,8 +17,6 @@ def get_proxmox_version(instance, url):
         dict: Contains current_version and latest_version, or None on error
     """
     try:
-        # Suppress SSL warnings for self-signed certificates
-        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         
         # Construct the API endpoint
         api_url = f"{url}/api2/json/version"
@@ -30,7 +27,7 @@ def get_proxmox_version(instance, url):
         }
         
         # Make the API call with authentication
-        response = requests.get(api_url, headers=headers, verify=False, timeout=10)
+        response = requests.get(api_url, headers=headers, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
