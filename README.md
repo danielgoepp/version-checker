@@ -104,28 +104,39 @@ The Excel file uses a single sheet with the following columns:
 
 ### Application Types Supported
 - **Home Assistant** - Home automation platform with API monitoring
-- **Kubernetes (K3s)** - Lightweight Kubernetes clusters
-- **Kopia** - Backup software with multi-node support
-- **Traefik** - Reverse proxy and load balancer
+- **Kubernetes (K3s)** - Lightweight Kubernetes clusters with pod monitoring
+- **Kopia** - Backup software with multi-node support (ssd, hdd, b2)
+- **Traefik** - Reverse proxy and load balancer across environments
 - **Zigbee2MQTT** - Zigbee to MQTT bridge with multiple coordinators
 - **ESPHome** - ESP8266/ESP32 firmware platform
-- **Telegraf** - Metrics collection agent
-- **VictoriaMetrics** - Time series database components
+- **Telegraf** - Metrics collection agent across infrastructure
+- **VictoriaMetrics** - Time series database components (vmsingle, vmagent, operator)
 - **Konnected** - Security system integration panels
 - **Mosquitto** - MQTT broker
 - **OPNsense** - Firewall/router firmware
-- **Proxmox VE** - Virtualization platform
+- **Proxmox VE** - Virtualization platform across cluster nodes
+- **Graylog** - Log management platform with Docker Hub version tracking
+- **MongoDB** - Document database
+- **OpenSearch** - Search and analytics engine
+- **Fluent Bit** - Log processor and forwarder
+- **Calico** - Kubernetes networking and security
+- **MetalLB** - Kubernetes load balancer
+- **Alertmanager** - Prometheus alert handling
 - **Linux Servers** - Ubuntu/Raspberry Pi kernel monitoring with apt-based update detection
 - **Tailscale** - VPN mesh network device tracking
 
 ### Multi-Instance Applications
 Applications that run on multiple servers are tracked separately by instance:
 - **Kopia**: Backup instances (ssd, hdd, b2) with separate version tracking
-- **Traefik**: Load balancer instances (prod, server1, rpi1) across different environments
-- **Home Assistant**: Multiple installations (prod, rpi2, server3)
-- **Zigbee2MQTT**: Multiple coordinators (coordinator1, coordinator2)
-- **Telegraf**: Multiple monitoring agents (vm, graylog, server4)
-- **Konnected**: Multiple alarm panels (car, workshop, garage)
+- **Traefik**: Load balancer instances (prod, morgspi, mudderpi) across different environments
+- **Home Assistant**: Multiple installations (prod, morgspi, mudderpi)
+- **Zigbee2MQTT**: Multiple coordinators (zigbee11, zigbee15)
+- **Telegraf**: Multiple monitoring agents (vm, graylog)
+- **Konnected**: Multiple alarm panels (car, workshop)
+- **K3s**: Kubernetes clusters (k3s-prod, k3s-morgspi, k3s-mudderpi)
+- **Proxmox VE**: Cluster nodes (pve11, pve12, pve13, pve15)
+- **VictoriaMetrics**: Multiple components (vmsingle, vmagent, operator)
+- **Ubuntu/Raspberry Pi**: Multiple servers and devices with individual kernel tracking
 
 Each instance gets its own row in the Excel file with individual version tracking.
 
@@ -148,10 +159,12 @@ Each instance gets its own row in the Excel file with individual version trackin
   - **`home_assistant.py`** - Home Assistant API integration
   - **`kubectl.py`** - Kubernetes pod version extraction
   - **`traefik.py`** - Traefik API endpoint version checking
+  - **`graylog.py`** - Graylog API integration with Docker Hub version tracking
   - **`linux_kernel.py`** - Unified Linux kernel update checking via SSH and apt
   - **`server_status.py`** - SSH-based server monitoring
   - **`proxmox.py`** - Proxmox VE API integration
   - **`tailscale.py`** - Multi-device Tailscale monitoring
+  - **`mongodb.py`** - MongoDB version checking
   - **`utils.py`** - Shared HTTP request helpers
   - And more specialized checkers for each application type
 - **`venv/`** - Virtual environment (not committed to git)
