@@ -85,8 +85,9 @@ The system uses two separate columns for version checking:
   - Format: `https://hostname.domain.com` or `https://ip-address:port`
   - Usage: Passed directly to HTTP request functions
 
-### Credentials Management
-- **Config.py**: Centralized credential storage
+### Configuration Management
+- **Config.py**: Centralized configuration and credential storage
+- **Excel File Path**: `config.EXCEL_FILE_PATH` (configurable via EXCEL_FILE_PATH env var, defaults to 'Goepp Homelab Master.xlsx')
 - **MQTT**: `config.MQTT_BROKER`, `config.MQTT_USERNAME`, `config.MQTT_PASSWORD`
 - **Home Assistant**: `config.HA_TOKENS` dictionary by instance
 - **OPNsense**: `config.OPNSENSE_API_KEY`, `config.OPNSENSE_API_SECRET`

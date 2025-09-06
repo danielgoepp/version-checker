@@ -61,3 +61,6 @@ GRAYLOG_PASSWORD = get_optional_env('GRAYLOG_PASSWORD', None, 'Graylog password 
 
 # Excel file path - with default fallback
 EXCEL_FILE_PATH = get_optional_env('EXCEL_FILE_PATH', 'Goepp Homelab Master.xlsx', 'Path to the Excel database file')
+
+# UniFi Protect credentials - OPTIONAL (for version checking)
+UNIFI_PROTECT_API_KEY = get_optional_env('UNIFI_PROTECT_API_KEY', None, 'UniFi Protect API key for authentication')
