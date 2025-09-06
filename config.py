@@ -74,3 +74,10 @@ SYNCTHING_API_KEYS = {}
 syncthing_prod_key = get_optional_env('SYNCTHING_API_KEY_PROD', None, 'Syncthing production API key')
 if syncthing_prod_key:
     SYNCTHING_API_KEYS['prod'] = syncthing_prod_key
+
+# AWX API credentials - OPTIONAL (for version checking)
+AWX_API_TOKENS = {}
+# Individual instance API tokens can be set in environment variables
+awx_prod_token = get_optional_env('AWX_API_TOKEN_PROD', None, 'AWX production API token')
+if awx_prod_token:
+    AWX_API_TOKENS['prod'] = awx_prod_token
