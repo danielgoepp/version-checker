@@ -24,6 +24,7 @@ from checkers.graylog import get_graylog_current_version, get_graylog_latest_ver
 from checkers.grafana import get_grafana_version
 from checkers.mongodb import get_mongodb_latest_version
 from checkers.unifi_protect import get_unifi_protect_version
+from checkers.unifi_network import get_unifi_network_version
 import config
 
 class VersionManager:
@@ -182,6 +183,10 @@ class VersionManager:
                 url = app.get('Target')
                 if url:
                     current_version = get_unifi_protect_version(instance, url)
+            elif app_name == 'UniFi Network':
+                url = app.get('Target')
+                if url:
+                    current_version = get_unifi_network_version(instance, url)
         elif check_current == 'kubectl':
             if app_name == 'Telegraf':
                 current_version = get_telegraf_version(instance)

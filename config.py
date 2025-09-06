@@ -64,3 +64,6 @@ EXCEL_FILE_PATH = get_optional_env('EXCEL_FILE_PATH', 'Goepp Homelab Master.xlsx
 
 # UniFi Protect credentials - OPTIONAL (for version checking)
 UNIFI_PROTECT_API_KEY = get_optional_env('UNIFI_PROTECT_API_KEY', None, 'UniFi Protect API key for authentication')
+
+# UniFi Network credentials - OPTIONAL (for version checking)
+UNIFI_NETWORK_API_KEY = get_optional_env('UNIFI_NETWORK_API_KEY', None, 'UniFi Network API key for authentication')
