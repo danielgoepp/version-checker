@@ -26,6 +26,7 @@ from checkers.mongodb import get_mongodb_latest_version
 from checkers.unifi_protect import get_unifi_protect_version
 from checkers.unifi_network import get_unifi_network_version
 from checkers.samba import get_samba_version, get_latest_samba_version
+from checkers.syncthing import check_syncthing_current_version
 import config
 
 class VersionManager:
@@ -189,6 +190,10 @@ class VersionManager:
                 url = app.get('Target')
                 if url:
                     current_version = get_unifi_network_version(instance, url)
+            elif app_name == 'Syncthing':
+                url = app.get('Target')
+                if url:
+                    current_version = check_syncthing_current_version(instance, url)
         elif check_current == 'kubectl':
             if app_name == 'Telegraf':
                 current_version = get_telegraf_version(instance)

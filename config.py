@@ -67,3 +67,10 @@ UNIFI_PROTECT_API_KEY = get_optional_env('UNIFI_PROTECT_API_KEY', None, 'UniFi P
 
 # UniFi Network credentials - OPTIONAL (for version checking)
 UNIFI_NETWORK_API_KEY = get_optional_env('UNIFI_NETWORK_API_KEY', None, 'UniFi Network API key for authentication')
+
+# Syncthing API credentials - OPTIONAL (for version checking)
+SYNCTHING_API_KEYS = {}
+# Individual instance API keys can be set in environment variables
+syncthing_prod_key = get_optional_env('SYNCTHING_API_KEY_PROD', None, 'Syncthing production API key')
+if syncthing_prod_key:
+    SYNCTHING_API_KEYS['prod'] = syncthing_prod_key
