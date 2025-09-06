@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 import pandas as pd
+from config import EXCEL_FILE_PATH
 
 def update_excel_structure():
     """Update existing Excel file structure while preserving all data"""
     
-    excel_path = 'Goepp Homelab Master.xlsx'
+    excel_path = EXCEL_FILE_PATH
     
     # Load existing data
     try:

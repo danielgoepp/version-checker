@@ -27,7 +27,7 @@ import config
 
 class VersionManager:
     # Constants
-    DEFAULT_EXCEL_PATH = "Goepp Homelab Master.xlsx"
+    DEFAULT_EXCEL_PATH = config.EXCEL_FILE_PATH
     SHEET_NAME = "Sheet1"
     
     STATUS_ICONS = {

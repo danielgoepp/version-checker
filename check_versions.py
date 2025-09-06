@@ -8,11 +8,12 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
 from version_manager import VersionManager
+from config import EXCEL_FILE_PATH
 
 def main():
     parser = argparse.ArgumentParser(description='Goepp Homelab Version Manager')
-    parser.add_argument('--excel', default='Goepp Homelab Master.xlsx', 
-                       help='Path to Excel file (default: Goepp Homelab Master.xlsx)')
+    parser.add_argument('--excel', default=EXCEL_FILE_PATH, 
+                       help=f'Path to Excel file (default: {EXCEL_FILE_PATH})')
     parser.add_argument('--check-all', action='store_true',
                        help='Check all applications and exit')
     parser.add_argument('--summary', action='store_true',

@@ -58,3 +58,6 @@ if graylog_prod_token:
 # Fallback basic auth credentials for Graylog
 GRAYLOG_USERNAME = get_optional_env('GRAYLOG_USERNAME', None, 'Graylog username for basic auth')
 GRAYLOG_PASSWORD = get_optional_env('GRAYLOG_PASSWORD', None, 'Graylog password for basic auth')
+
+# Excel file path - with default fallback
+EXCEL_FILE_PATH = get_optional_env('EXCEL_FILE_PATH', 'Goepp Homelab Master.xlsx', 'Path to the Excel database file')
