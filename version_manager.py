@@ -78,7 +78,8 @@ class VersionManager:
             
         check_current = app['Check_Current']
         check_latest = app['Check_Latest']
-        repository = app['Repository']
+        github_repo = app['GitHub']
+        dockerhub_repo = app['DockerHub']
         
         print(f"Checking {display_name}...")
         
@@ -87,26 +88,26 @@ class VersionManager:
         firmware_update_available = False
         
         # Get latest version based on check_latest method
-        if check_latest == 'github_release' and repository and pd.notna(repository):
-            latest_version = get_github_latest_version(repository)
-        elif check_latest == 'github_tag' and repository and pd.notna(repository):
+        if check_latest == 'github_release' and github_repo and pd.notna(github_repo):
+            latest_version = get_github_latest_version(github_repo)
+        elif check_latest == 'github_tag' and github_repo and pd.notna(github_repo):
             if app_name == 'MongoDB':
                 latest_version = get_mongodb_latest_version()
             elif app_name == 'pgAdmin':
-                raw_tag = get_github_latest_tag(repository)
+                raw_tag = get_github_latest_tag(github_repo)
                 if raw_tag and raw_tag.startswith('REL-'):
                     # Convert REL-9_8 to 9.8
                     latest_version = raw_tag.replace('REL-', '').replace('_', '.')
                 else:
                     latest_version = raw_tag
             else:
-                latest_version = get_github_latest_tag(repository)
-        elif check_latest == 'docker_hub' and repository and pd.notna(repository):
+                latest_version = get_github_latest_tag(github_repo)
+        elif check_latest == 'docker_hub' and dockerhub_repo and pd.notna(dockerhub_repo):
             # Use Repository field for docker_hub method - no hardcoding
             if app_name == 'Graylog':
-                latest_version = get_graylog_latest_version_from_repo(repository)
+                latest_version = get_graylog_latest_version_from_repo(dockerhub_repo)
             elif app_name == 'PostgreSQL':
-                latest_version = get_postgresql_latest_version_from_ghcr(repository)
+                latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
             # No fallback - if docker_hub method fails, we don't get data
         elif check_latest == 'proxmox' and app_name == 'Proxmox VE':
             latest_version = get_proxmox_latest_version()
@@ -134,12 +135,12 @@ class VersionManager:
             elif app_name == 'Konnected':
                 url = app.get('Target')
                 if check_latest == 'github_tag':
-                    # Project version mode - get from Repository
-                    project_version = get_konnected_version(instance, None, repository)
+                    # Project version mode - get from GitHub repository
+                    project_version = get_konnected_version(instance, None, github_repo)
                     latest_version = project_version
                     current_version = project_version
                 else:
-                    current_version = get_konnected_version(instance, url, repository)
+                    current_version = get_konnected_version(instance, url, github_repo)
             elif app_name == 'Traefik':
                 url = app.get('Target')
                 current_version = get_traefik_version(instance, url)

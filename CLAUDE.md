@@ -8,7 +8,7 @@ Note: This is for my specific infrastructure only, not a general purpose app. Th
 
 ## Architecture
 - **Language**: Python 3.13.7 with pandas, requests, paho-mqtt libraries
-- **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure and Repository field
+- **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure and GitHub/DockerHub repository fields
 - **Modular Design**: Individual checkers in `checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
 - **Virtual Environment**: Always use `source venv/bin/activate`
@@ -72,11 +72,10 @@ The system uses two separate columns for version checking:
 ## Configuration Patterns
 
 ### Repository Field Management
-- **Excel stores repository paths**: Repository paths for GitHub, Docker Hub, etc. in Repository column  
-- **Direct usage**: Repository field values used by checkers without hardcoding
-- **Examples**:
-  - GitHub repos: `owner/repository-name` format
-  - Docker Hub: `organization/image-name` format
+- **Separate fields**: GitHub and DockerHub repository paths in dedicated columns
+- **GitHub field**: GitHub repository paths in `owner/repository-name` format  
+- **DockerHub field**: Docker Hub repository paths in `organization/image-name` format
+- **Direct usage**: Field values used by checkers based on Check_Latest method without hardcoding
 
 ### URL Handling  
 - **Excel stores complete URLs**: Full URLs with https:// protocols in Target column
@@ -149,9 +148,10 @@ The system uses two separate columns for version checking:
 
 ### Adding New Applications
 1. Add entries to Excel with appropriate `Check_Current` and `Check_Latest` methods plus complete URL
-2. Create or extend checker module in `checkers/` directory
-3. Import and integrate checker function in `version_manager.py`
-4. Test with `--app` flag
+2. Populate GitHub or DockerHub field based on the Check_Latest method used
+3. Create or extend checker module in `checkers/` directory
+4. Import and integrate checker function in `version_manager.py`
+5. Test with `--app` flag
 
 ### Modular Development
 - **New checker creation**: Add file to `checkers/` with focused functionality
@@ -161,9 +161,10 @@ The system uses two separate columns for version checking:
 - **Unified approach**: linux_kernel.py handles all Linux distributions (57 lines vs 220 lines previously)
 
 ### Excel Structure Preservation
-- **Column Structure**: Name, Instance, Type, Category, Target, Repository, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
+- **Column Structure**: Name, Instance, Type, Category, Target, GitHub, DockerHub, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
 - **Target Column**: Store complete URLs with protocols in Excel
-- **Repository Column**: Store repository paths (GitHub org/repo, Docker Hub paths, etc.)
+- **GitHub Column**: Store GitHub repository paths (owner/repo format)
+- **DockerHub Column**: Store Docker Hub repository paths (org/image format)
 - **Name/Instance Pattern**: Maintain consistent naming structure
 - **Check Methods**: Use `Check_Current` for version retrieval method, `Check_Latest` for latest version source
 
