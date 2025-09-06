@@ -1,440 +1,161 @@
-import subprocess
-import re
+import json
+from .base import KubernetesChecker
+from .utils import parse_json_version
 
-def switch_kubectl_context(context):
-    """Switch kubectl context and return success status"""
-    try:
-        cmd = f"kubectl config use-context {context}"
-        result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
+
+class TelegrafChecker(KubernetesChecker):
+    """Checker for Telegraf instances in Kubernetes"""
+    
+    def __init__(self, instance):
+        super().__init__(instance, namespace="telegraf")
+        self.pod_prefixes = {"vm": "telegraf-vm", "graylog": "telegraf-graylog"}
+    
+    def get_version(self):
+        if self.instance not in self.pod_prefixes:
+            print(f"  {self.instance}: Unknown Telegraf instance")
+            return None
+        
+        pod_prefix = self.pod_prefixes[self.instance]
+        pod_name = self.find_pod(pod_prefix)
+        
+        if not pod_name:
+            return None
+        
+        output = self.exec_pod_command(pod_name, "telegraf --version")
+        if output:
+            # Parse "Telegraf 1.35.4 (git: HEAD@c93eb6a0)" format
+            return self.get_version_from_command_output(output, r"Telegraf\s+(\d+\.\d+\.\d+)")
+
+
+class ImageVersionChecker(KubernetesChecker):
+    """Generic checker for getting versions from container images"""
+    
+    def get_version_from_image(self, resource_type, resource_name, image_pattern):
+        description = self.describe_resource(resource_type, resource_name)
+        if description:
+            return self.get_image_version_from_description(description, image_pattern)
+        return None
+
+
+class PodAPIChecker(KubernetesChecker):
+    """Generic checker for APIs accessed within pods"""
+    
+    def get_version_from_pod_api(self, pod_pattern, api_command, version_field='version'):
+        pod_name = self.find_pod(pod_pattern)
+        if not pod_name:
+            return None
+        
+        output = self.exec_pod_command(pod_name, api_command)
+        if output:
+            version = parse_json_version(output, version_field)
+            if version:
+                print(f"  {self.instance}: {version}")
+                return version
+            else:
+                print(f"  {self.instance}: Version field not found in API response")
+                return None
+        return None
 
 
 def get_telegraf_version(instance):
     """Get Telegraf version from Kubernetes pod for a specific instance"""
-    try:
-        # Map instance names to pod prefixes
-        pod_prefixes = {"vm": "telegraf-vm", "graylog": "telegraf-graylog"}
-
-        if instance not in pod_prefixes:
-            print(f"  {instance}: Unknown Telegraf instance")
-            return None
-
-        pod_prefix = pod_prefixes[instance]
-
-        # First, get the pod name
-        get_pod_cmd = f"kubectl get pods -n telegraf | grep {pod_prefix} | grep Running | head -1 | awk '{{print $1}}'"
-        pod_result = subprocess.run(
-            get_pod_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-
-        if pod_result.returncode != 0 or not pod_result.stdout.strip():
-            print(f"  {instance}: Could not find running {pod_prefix} pod")
-            return None
-
-        pod_name = pod_result.stdout.strip()
-        print(f"  {instance}: Found pod {pod_name}")
-
-        # Execute telegraf --version in the pod
-        version_cmd = f"kubectl exec -n telegraf {pod_name} -- telegraf --version"
-        version_result = subprocess.run(
-            version_cmd, shell=True, capture_output=True, text=True, timeout=15
-        )
-
-        if version_result.returncode == 0:
-            # Parse output like "Telegraf 1.35.4 (git: HEAD@c93eb6a0)"
-            output = version_result.stdout.strip()
-            version_match = re.search(r"Telegraf\s+(\d+\.\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from: {output}")
-                return None
-        else:
-            print(
-                f"  {instance}: Error executing telegraf --version: {version_result.stderr}"
-            )
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
+    return TelegrafChecker(instance).get_version()
 
 
 def get_calico_version(instance):
     """Get Calico version from Kubernetes daemonset"""
-    try:
-        # Get Calico node daemonset image version
-        describe_cmd = "kubectl describe daemonset calico-node -n calico-system | grep 'Image:' | grep calico/node"
-        describe_result = subprocess.run(
-            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-
-        if describe_result.returncode == 0:
-            output = describe_result.stdout.strip()
-            # Look for version in image tag like "calico/node:v3.28.2"
-            version_match = re.search(r"calico/node:v?(\d+\.\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from image: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error getting calico-node daemonset description")
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
+    checker = ImageVersionChecker(instance, namespace="calico-system")
+    return checker.get_version_from_image("daemonset", "calico-node", "calico/node")
 
 
 def get_metallb_version(instance):
     """Get MetalLB version from Kubernetes deployment"""
-    try:
-        # Get MetalLB controller deployment image version
-        describe_cmd = "kubectl describe deployment metallb-controller -n metallb-system | grep 'Image:' | grep metallb/controller"
-        describe_result = subprocess.run(
-            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-
-        if describe_result.returncode == 0:
-            output = describe_result.stdout.strip()
-            # Look for version in image tag like "metallb/controller:v0.14.8"
-            version_match = re.search(r"metallb/controller:v?(\d+\.\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from image: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error getting metallb controller deployment description")
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
+    checker = ImageVersionChecker(instance, namespace="metallb-system")
+    return checker.get_version_from_image("deployment", "metallb-controller", "metallb/controller")
 
 
 def get_alertmanager_version(instance):
     """Get Alertmanager version from Kubernetes statefulset"""
-    try:
-        # Get Alertmanager statefulset image version
-        describe_cmd = "kubectl describe statefulset alertmanager -n alertmanager | grep 'Image:' | grep prometheus/alertmanager"
-        describe_result = subprocess.run(
-            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-
-        if describe_result.returncode == 0:
-            output = describe_result.stdout.strip()
-            # Look for version in image tag like "prometheus/alertmanager:v0.28.0"
-            version_match = re.search(r"prometheus/alertmanager:v?(\d+\.\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from image: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error getting alertmanager statefulset description")
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
-
-
-def get_mosquitto_version(instance):
-    """Get Mosquitto MQTT broker version from Kubernetes pod"""
-    try:
-        # Find the mosquitto pod
-        get_pod_cmd = f"kubectl get pods -n mosquitto | grep mosquitto | grep Running | head -1 | awk '{{print $1}}'"
-        pod_result = subprocess.run(
-            get_pod_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-
-        if pod_result.returncode != 0 or not pod_result.stdout.strip():
-            print(f"  {instance}: Could not find running mosquitto pod")
-            return None
-
-        pod_name = pod_result.stdout.strip()
-        print(f"  {instance}: Found pod {pod_name}")
-
-        # Execute mosquitto -h to get version (shown in first line)
-        version_cmd = f"kubectl exec -n mosquitto {pod_name} -- mosquitto -h"
-        version_result = subprocess.run(
-            version_cmd, shell=True, capture_output=True, text=True, timeout=15
-        )
-
-        if version_result.returncode == 0:
-            # Parse first line: "mosquitto version 2.0.22"
-            output = version_result.stdout.strip()
-            first_line = output.split("\n")[0] if output else ""
-
-            version_match = re.search(r"mosquitto version (\d+\.\d+\.\d+)", first_line)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from: {first_line}")
-                return None
-        else:
-            print(
-                f"  {instance}: Error executing mosquitto -h: {version_result.stderr}"
-            )
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
-
-
-def get_opensearch_version(instance):
-    """Get OpenSearch version from Kubernetes pod API"""
-    try:
-        # Execute curl to OpenSearch API in the pod
-        version_cmd = "kubectl exec opensearch2-cluster-master-0 -n opensearch -- curl -s http://localhost:9200"
-        version_result = subprocess.run(
-            version_cmd, shell=True, capture_output=True, text=True, timeout=15
-        )
-
-        if version_result.returncode == 0:
-            # Parse JSON output to extract version number
-            import json
-            try:
-                output = version_result.stdout.strip()
-                data = json.loads(output)
-                if 'version' in data and 'number' in data['version']:
-                    version = data['version']['number']
-                    print(f"  {instance}: {version}")
-                    return version
-                else:
-                    print(f"  {instance}: Version field not found in API response")
-                    return None
-            except json.JSONDecodeError:
-                print(f"  {instance}: Could not parse JSON response: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error executing OpenSearch API call: {version_result.stderr}")
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
-
-
-def get_mongodb_version(instance):
-    """Get MongoDB version from Kubernetes pod command"""
-    try:
-        # Execute mongod --version in the MongoDB pod
-        version_cmd = "kubectl exec mongodb-0 -n mongodb -c mongod -- mongod --version"
-        version_result = subprocess.run(
-            version_cmd, shell=True, capture_output=True, text=True, timeout=15
-        )
-
-        if version_result.returncode == 0:
-            # Parse output like "db version v6.0.8"
-            output = version_result.stdout.strip()
-            version_match = re.search(r"db version v(\d+\.\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error executing mongod --version: {version_result.stderr}")
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
+    checker = ImageVersionChecker(instance, namespace="alertmanager")
+    return checker.get_version_from_image("statefulset", "alertmanager", "prometheus/alertmanager")
 
 
 def get_fluentbit_version(instance):
     """Get Fluent Bit version from Kubernetes daemonset image"""
-    try:
-        # Get Fluent Bit daemonset image version
-        describe_cmd = "kubectl describe daemonset fluent-bit -n fluent-bit | grep 'Image:' | grep fluent-bit"
-        describe_result = subprocess.run(
-            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-
-        if describe_result.returncode == 0:
-            output = describe_result.stdout.strip()
-            # Look for version in image tag like "cr.fluentbit.io/fluent/fluent-bit:3.2.2"
-            version_match = re.search(r"fluent-bit:v?(\d+\.\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from image: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error getting fluent-bit daemonset description")
-            return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
-        return None
+    checker = ImageVersionChecker(instance, namespace="fluent-bit")
+    return checker.get_version_from_image("daemonset", "fluent-bit", "fluent-bit")
 
 
 def get_pgadmin_version(instance):
     """Get pgAdmin version from Kubernetes deployment image"""
-    try:
-        # Get pgAdmin deployment image version
-        describe_cmd = "kubectl describe deployment pgadmin-pgadmin4 -n pgadmin | grep 'Image:' | grep pgadmin4"
-        describe_result = subprocess.run(
-            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
+    checker = ImageVersionChecker(instance, namespace="pgadmin")
+    return checker.get_version_from_image("deployment", "pgadmin-pgadmin4", "pgadmin4")
 
-        if describe_result.returncode == 0:
-            output = describe_result.stdout.strip()
-            # Look for version in image tag like "docker.io/dpage/pgadmin4:9.5"
-            version_match = re.search(r"pgadmin4:v?(\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from image: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error getting pgadmin deployment description")
-            return None
 
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
+def get_mosquitto_version(instance):
+    """Get Mosquitto MQTT broker version from Kubernetes pod"""
+    checker = KubernetesChecker(instance, namespace="mosquitto")
+    pod_name = checker.find_pod("mosquitto")
+    
+    if not pod_name:
         return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
+    
+    output = checker.exec_pod_command(pod_name, "mosquitto -h")
+    if output:
+        # Parse first line: "mosquitto version 2.0.22"
+        first_line = output.split("\n")[0] if output else ""
+        return checker.get_version_from_command_output(first_line, r"mosquitto version (\d+\.\d+\.\d+)")
+
+
+def get_opensearch_version(instance):
+    """Get OpenSearch version from Kubernetes pod API"""
+    checker = PodAPIChecker(instance, namespace="opensearch")
+    return checker.get_version_from_pod_api(
+        "opensearch2-cluster-master-0",
+        "curl -s http://localhost:9200",
+        "version.number"
+    )
+
+
+def get_mongodb_version(instance):
+    """Get MongoDB version from Kubernetes pod command"""
+    checker = KubernetesChecker(instance, namespace="mongodb")
+    pod_name = checker.find_pod("mongodb-0")
+    
+    if not pod_name:
         return None
+    
+    output = checker.exec_pod_command(pod_name, "mongod --version", container="mongod")
+    if output:
+        # Parse "db version v6.0.8" format
+        return checker.get_version_from_command_output(output, r"db version v(\d+\.\d+\.\d+)")
 
 
 def get_victoriametrics_version(instance):
     """Get VictoriaMetrics version from Kubernetes pod for a specific instance"""
-    try:
-        # Dynamically discover pods based on instance name patterns
-        if instance == "operator":
-            pod_pattern = "vmoperator"
-            namespace = "victoriametrics"
-            version_method = "image"  # Get version from container image
-            version_cmd = None
-            container = None
-        elif "vmagent" in instance:
-            pod_pattern = "vmagent"
-            namespace = "victoriametrics"
-            version_method = "command"
-            version_cmd = "/vmagent-prod -version"
-            container = "vmagent"
-        elif "vmsingle" in instance:
-            pod_pattern = "vmsingle"
-            namespace = "victoriametrics"
-            version_method = "command"
-            version_cmd = "/victoria-metrics-prod -version"
-            container = None
-        else:
-            print(f"  {instance}: Unknown VictoriaMetrics instance type")
-            return None
-
-        # First, get the pod name using dynamic pattern
-        get_pod_cmd = f"kubectl get pods -n {namespace} | grep {pod_pattern} | grep Running | head -1 | awk '{{print $1}}'"
-        pod_result = subprocess.run(
-            get_pod_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
-
-        if pod_result.returncode != 0 or not pod_result.stdout.strip():
-            print(f"  {instance}: Could not find running {pod_pattern} pod in {namespace}")
-            return None
-
-        pod_name = pod_result.stdout.strip()
-        print(f"  {instance}: Found pod {pod_name}")
-
-        # Handle different version detection methods
-        if version_method == "image":
-            describe_cmd = f"kubectl describe pod {pod_name} -n {namespace} | grep 'Image:' | grep operator"
-            describe_result = subprocess.run(
-                describe_cmd, shell=True, capture_output=True, text=True, timeout=10
-            )
-
-            if describe_result.returncode == 0:
-                output = describe_result.stdout.strip()
-                # Look for version in image tag like "victoriametrics/operator:v0.53.0"
-                version_match = re.search(r"operator:v?(\d+\.\d+\.\d+)", output)
-                if version_match:
-                    version = version_match.group(1)
-                    print(f"  {instance}: {version}")
-                    return version
-                else:
-                    print(f"  {instance}: Could not parse version from image: {output}")
-                    return None
-            else:
-                print(f"  {instance}: Error getting pod description")
-                return None
-
-        elif version_method == "command":
-            # Execute version command in the pod
-            container_flag = f"-c {container}" if container else ""
-            kubectl_cmd = f"kubectl exec -n {namespace} {pod_name} {container_flag} -- {version_cmd}"
-            version_result = subprocess.run(
-                kubectl_cmd, shell=True, capture_output=True, text=True, timeout=15
-            )
-            
-            if version_result.returncode == 0:
-                # Parse output - VictoriaMetrics typically outputs version info
-                output = version_result.stdout.strip()
-                # Look for version patterns like "v1.125.0" or "1.125.0"
-                version_match = re.search(r"v?(\d+\.\d+\.\d+)", output)
-                if version_match:
-                    version = version_match.group(1)
-                    print(f"  {instance}: {version}")
-                    return version
-                else:
-                    print(f"  {instance}: Could not parse version from: {output}")
-                    return None
-            else:
-                print(f"  {instance}: Error executing {version_cmd}: {version_result.stderr}")
-                return None
-
-    except subprocess.TimeoutExpired:
-        print(f"  {instance}: Timeout getting version")
-        return None
-    except Exception as e:
-        print(f"  {instance}: Error getting version - {e}")
+    checker = KubernetesChecker(instance, namespace="victoriametrics")
+    
+    # Configure instance-specific parameters
+    if instance == "operator":
+        pod_pattern = "vmoperator"
+        # For operator, get version from image
+        image_checker = ImageVersionChecker(instance, namespace="victoriametrics")
+        pod_name = image_checker.find_pod(pod_pattern)
+        if pod_name:
+            description = image_checker.describe_resource("pod", pod_name)
+            return image_checker.get_image_version_from_description(description, "operator")
+    elif "vmagent" in instance:
+        pod_pattern = "vmagent"
+        pod_name = checker.find_pod(pod_pattern)
+        if pod_name:
+            output = checker.exec_pod_command(pod_name, "/vmagent-prod -version", container="vmagent")
+            return checker.get_version_from_command_output(output)
+    elif "vmsingle" in instance:
+        pod_pattern = "vmsingle"
+        pod_name = checker.find_pod(pod_pattern)
+        if pod_name:
+            output = checker.exec_pod_command(pod_name, "/victoria-metrics-prod -version")
+            return checker.get_version_from_command_output(output)
+    else:
+        print(f"  {instance}: Unknown VictoriaMetrics instance type")
         return None
