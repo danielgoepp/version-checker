@@ -111,7 +111,7 @@ class VersionManager:
                 latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
             # No fallback - if docker_hub method fails, we don't get data
         elif check_latest == 'proxmox' and app_name == 'Proxmox VE':
-            latest_version = get_proxmox_latest_version()
+            latest_version = get_proxmox_latest_version(include_ceph=True)
         elif check_latest == 'opnsense' and app_name == 'OPNsense':
             # OPNsense latest version is handled in the current version check
             pass

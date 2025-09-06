@@ -2,19 +2,67 @@
 
 import json
 import requests
+import subprocess
+import os
+from pathlib import Path
 # No longer need utils import - using requests directly
 import config
 
+def get_ceph_version(instance):
+    """
+    Get Ceph version via SSH
+    
+    Args:
+        instance: Instance name (e.g., pve11, pve12, pve13, pve15)
+    
+    Returns:
+        str: Ceph version or None if not available
+    """
+    try:
+        cmd = [
+            "ssh",
+            "-o", "ConnectTimeout=10",
+            "-o", "BatchMode=yes", 
+            "-o", "StrictHostKeyChecking=no",
+            f"root@{instance}",
+            "ceph --version 2>/dev/null"
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        
+        if result.returncode == 0:
+            output = result.stdout.strip()
+            # Parse "ceph version 18.2.4 (e6ccd7ba688e)"
+            import re
+            match = re.search(r'ceph version (\d+\.\d+\.\d+)', output)
+            if match:
+                return match.group(1)
+            else:
+                # Fallback: try to extract version from output
+                parts = output.split()
+                if len(parts) >= 3 and parts[0] == 'ceph' and parts[1] == 'version':
+                    return parts[2]
+        
+        return None
+        
+    except subprocess.TimeoutExpired:
+        print(f"  SSH timeout getting Ceph version for {instance}")
+        return None
+    except Exception as e:
+        print(f"  Error getting Ceph version for {instance}: {e}")
+        return None
+
+
 def get_proxmox_version(instance, url):
     """
-    Get Proxmox VE version information via API
+    Get Proxmox VE version information via API and Ceph version via SSH
     
     Args:
         instance: Instance name (e.g., pve11, pve12, pve13, pve15)
         url: Base URL of the Proxmox server (e.g., https://pve11.goepp.net:8006)
     
     Returns:
-        dict: Contains current_version and latest_version, or None on error
+        str: Combined Proxmox + Ceph version or Proxmox version only
     """
     try:
         
@@ -38,13 +86,25 @@ def get_proxmox_version(instance, url):
                 
                 # The API returns version information in a simple dict format
                 # Use the 'version' field which contains the full version number
-                current_version = version_data.get('version')
+                proxmox_version = version_data.get('version')
                 
-                if current_version:
-                    return current_version
+                if not proxmox_version:
+                    # Fallback to 'release' if version is not available
+                    proxmox_version = version_data.get('release')
                 
-                # Fallback to 'release' if version is not available
-                return version_data.get('release')
+                if proxmox_version:
+                    # Get Ceph version via SSH
+                    ceph_version = get_ceph_version(instance)
+                    
+                    if ceph_version:
+                        combined_version = f"{proxmox_version} (Ceph {ceph_version})"
+                        print(f"  {instance}: Proxmox {proxmox_version}, Ceph {ceph_version}")
+                        return combined_version
+                    else:
+                        print(f"  {instance}: Proxmox {proxmox_version}")
+                        return proxmox_version
+                
+                return None
                 
         elif response.status_code == 401:
             print(f"  Authentication failed for {instance} Proxmox API (401 Unauthorized)")
@@ -68,12 +128,66 @@ def get_proxmox_version(instance, url):
         print(f"  Error checking Proxmox version for {instance}: {e}")
         return None
 
-def get_proxmox_latest_version():
+def load_compatibility_matrix():
     """
-    Get latest Proxmox VE version from endoflife.date API
+    Load Proxmox-Ceph compatibility matrix from cache file
     
     Returns:
-        str: Latest version string or None
+        dict: Compatibility matrix or empty dict if not available
+    """
+    cache_file = Path(__file__).parent.parent / "proxmox_ceph_compatibility.json"
+    
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r') as f:
+                cache_data = json.load(f)
+            return cache_data.get('compatibility_matrix', {})
+        except Exception as e:
+            print(f"  Error: Failed to load compatibility cache: {e}")
+            print(f"  Run 'python3 refresh_proxmox_ceph_matrix.py' to generate compatibility data")
+            return {}
+    else:
+        print(f"  Error: Compatibility matrix not found at {cache_file}")
+        print(f"  Run 'python3 refresh_proxmox_ceph_matrix.py' to generate compatibility data")
+        return {}
+
+def get_ceph_latest_version_for_proxmox(proxmox_version):
+    """
+    Get latest supported Ceph version for a specific Proxmox version
+    
+    Args:
+        proxmox_version: Proxmox version string (e.g., "9.0", "8.4.12")
+    
+    Returns:
+        str: Latest supported Ceph version for that Proxmox version or None
+    """
+    if not proxmox_version:
+        return None
+        
+    # Load compatibility matrix (from cache or hardcoded fallback)
+    proxmox_ceph_compatibility = load_compatibility_matrix()
+        
+    # Extract major.minor version for compatibility check
+    import re
+    match = re.match(r'(\d+\.\d+)', proxmox_version)
+    if not match:
+        return None
+        
+    version_key = match.group(1)
+    
+    # Return the supported Ceph version for this Proxmox version
+    return proxmox_ceph_compatibility.get(version_key)
+
+
+def get_proxmox_latest_version(include_ceph=False):
+    """
+    Get latest Proxmox VE version from endoflife.date API, optionally with Ceph
+    
+    Args:
+        include_ceph: Whether to include Ceph latest version
+    
+    Returns:
+        str: Latest version string (possibly combined with Ceph) or None
     """
     try:
         # Use endoflife.date API for Proxmox VE version information
@@ -89,12 +203,16 @@ def get_proxmox_latest_version():
                 latest = versions[0]
                 
                 # Use the 'latest' field which has more detailed version info like "9.0"
-                if 'latest' in latest:
-                    return latest['latest']
+                proxmox_latest = latest.get('latest') or latest.get('cycle')
                 
-                # Fallback to cycle field if latest is not available
-                if 'cycle' in latest:
-                    return latest['cycle']
+                if proxmox_latest:
+                    if include_ceph:
+                        # Get latest supported Ceph version for this Proxmox version
+                        ceph_latest = get_ceph_latest_version_for_proxmox(proxmox_latest)
+                        if ceph_latest:
+                            return f"{proxmox_latest} (Ceph {ceph_latest})"
+                    
+                    return proxmox_latest
             
         else:
             print(f"  Failed to get latest Proxmox version: HTTP {response.status_code}")
