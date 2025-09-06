@@ -25,6 +25,7 @@ from checkers.grafana import get_grafana_version
 from checkers.mongodb import get_mongodb_latest_version
 from checkers.unifi_protect import get_unifi_protect_version
 from checkers.unifi_network import get_unifi_network_version
+from checkers.samba import get_samba_version, get_latest_samba_version
 import config
 
 class VersionManager:
@@ -229,25 +230,30 @@ class VersionManager:
                 url = app.get('Target')
                 current_version = get_kopia_version(instance, url)
         elif check_current == 'ssh':
-            # Handle server/hardware Linux version checks via SSH using instance
-            server_info = check_server_status(instance, None)
-            if server_info:
-                # Combine OS name and kernel version for Current_Version
-                os_name = server_info['os_name']
-                kernel = server_info['kernel']
-                current_version = f"{os_name} - {kernel}"
-                if check_latest == 'none' or check_latest == 'ssh_apt':
-                    raw_latest = server_info.get('latest_kernel', kernel)
-                    # For ssh_apt, show user-friendly status instead of kernel version
-                    if check_latest == 'ssh_apt':
-                        latest_version = raw_latest if raw_latest == "update available" else "No updates"
-                    else:
-                        latest_version = raw_latest
-                
+            if app_name == 'Samba':
+                url = app.get('Target')
+                current_version = get_samba_version(instance, url)
+                if check_latest == 'ssh_apt':
+                    latest_version = get_latest_samba_version(instance)
             else:
-                current_version = "SSH Failed"
-                if check_latest == 'none' or check_latest == 'ssh_apt':
-                    latest_version = "Unknown"
+                # Handle server/hardware Linux version checks via SSH using instance
+                server_info = check_server_status(instance, None)
+                if server_info:
+                    # Combine OS name and kernel version for Current_Version
+                    os_name = server_info['os_name']
+                    kernel = server_info['kernel']
+                    current_version = f"{os_name} - {kernel}"
+                    if check_latest == 'none' or check_latest == 'ssh_apt':
+                        raw_latest = server_info.get('latest_kernel', kernel)
+                        # For ssh_apt, show user-friendly status instead of kernel version
+                        if check_latest == 'ssh_apt':
+                            latest_version = raw_latest if raw_latest == "update available" else "No updates"
+                        else:
+                            latest_version = raw_latest
+                else:
+                    current_version = "SSH Failed"
+                    if check_latest == 'none' or check_latest == 'ssh_apt':
+                        latest_version = "Unknown"
         
         # Update notes if firmware update is available (OPNsense specific)
         if firmware_update_available:
