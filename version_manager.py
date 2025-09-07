@@ -38,6 +38,7 @@ from checkers.awx import check_awx_current_version
 from checkers.postfix import get_postfix_latest_version_from_dockerhub
 from checkers.dockerhub import get_dockerhub_latest_version
 from checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
+from checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper_version, get_wyoming_whisper_version
 import config
 
 class VersionManager:
@@ -339,6 +340,12 @@ class VersionManager:
                 current_version = get_minio_kubectl_version(instance)
             elif app_name == 'n8n':
                 current_version = get_n8n_version_kubectl(instance)
+            elif app_name == 'Wyoming OpenWakeWord':
+                current_version = get_wyoming_openwakeword_version(instance, url)
+            elif app_name == 'Wyoming Piper':
+                current_version = get_wyoming_piper_version(instance, url)
+            elif app_name == 'Wyoming Whisper':
+                current_version = get_wyoming_whisper_version(instance, url)
         
         elif check_current == 'mqtt':
             if app_name == 'Zigbee2MQTT':
