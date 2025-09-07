@@ -38,7 +38,7 @@ from checkers.awx import check_awx_current_version
 from checkers.postfix import get_postfix_latest_version_from_dockerhub
 from checkers.dockerhub import get_dockerhub_latest_version
 from checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
-from checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper_version, get_wyoming_whisper_version
+from checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper_version, get_wyoming_whisper_version, get_wyoming_satellite_version
 from checkers.ollama import get_ollama_version
 from checkers.docker import get_docker_version
 from checkers.portainer import get_portainer_version
@@ -373,6 +373,8 @@ class VersionManager:
                     latest_version = get_latest_samba_version(instance)
             elif app_name == 'Docker':
                 current_version = get_docker_version(instance, url)
+            elif app_name == 'Wyoming Satellite':
+                current_version = get_wyoming_satellite_version(instance, url)
         
         return current_version, latest_version, firmware_update_available
 
