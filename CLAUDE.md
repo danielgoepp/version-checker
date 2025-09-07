@@ -7,8 +7,9 @@ Excel-based software version monitoring system with multi-instance support for t
 Note: This is for my specific infrastructure only, not a general purpose app. The only reason I make this a public repository is for reference only. If one were to take this code an try to make it work for them, significant changes would be needed to customize it. Unless of course you run the exact tech stack in the extact same way I do. If you are interested and want a copy of the Excel doc that goes with this, let me know and I would be happy to provide it.
 
 ## Architecture
-- **Language**: Python 3.13.7 with pandas, requests, paho-mqtt libraries
+- **Language**: Python 3.13.7 with openpyxl, requests, paho-mqtt libraries
 - **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure and GitHub/DockerHub repository fields
+- **Excel Handling**: **EXCLUSIVELY uses openpyxl** for all Excel operations to preserve formatting (no pandas)
 - **Modular Design**: Individual checkers in `checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
 - **Virtual Environment**: Always use `source venv/bin/activate`
@@ -49,6 +50,11 @@ The system uses two separate columns for version checking:
 | `opnsense` | OPNsense firmware update logic | OPNsense firewall systems |
 | `tailscale` | Tailscale device update tracking | Tailscale VPN networks |
 | `none` | No latest version checking | Applications without available update sources |
+
+#### Source Preference Logic
+- **Docker Hub Priority**: When both GitHub and DockerHub fields are populated, system prefers Docker Hub for latest version
+- **Automatic Fallback**: Falls back to GitHub if Docker Hub check fails or returns no result
+- **Repository Flexibility**: Both GitHub and DockerHub fields can be populated regardless of Check_Latest method
 
 ### Status Icons & Meanings
 - **✅ Up to Date**: Current matches latest
@@ -148,10 +154,16 @@ The system uses two separate columns for version checking:
 
 ### Adding New Applications
 1. Add entries to Excel with appropriate `Check_Current` and `Check_Latest` methods plus complete URL
-2. Populate GitHub or DockerHub field based on the Check_Latest method used
+2. Populate both GitHub and DockerHub fields when available (Docker Hub will be preferred automatically)
 3. Create or extend checker module in `checkers/` directory
 4. Import and integrate checker function in `version_manager.py`
 5. Test with `--app` flag
+
+### Repository Field Strategy
+- **Populate Both**: Add both GitHub and DockerHub repositories when available
+- **Docker Hub Preference**: System automatically prefers Docker Hub for containerized applications
+- **Fallback Safety**: GitHub used as backup if Docker Hub fails
+- **Method Independence**: Check_Latest method can be github_release/github_tag while still preferring Docker Hub
 
 ### Modular Development
 - **New checker creation**: Add file to `checkers/` with focused functionality
@@ -191,8 +203,16 @@ The system uses two separate columns for version checking:
 - **Virtual Environment**: Recreate with new Python versions for optimal compatibility
 - **SSL/TLS**: Uses system OpenSSL with urllib3 v2.5.0+ for secure HTTPS requests
 - **Code Organization**: Modular architecture with optimized checker modules (unified linux_kernel.py reduced complexity)
-- **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use pandas with virtual environment: `source venv/bin/activate && python3 -c "import pandas as pd; df = pd.read_excel('filename')"` 
+- **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use openpyxl with virtual environment to preserve formatting: `source venv/bin/activate && python3 -c "from openpyxl import load_workbook; wb = load_workbook('filename'); ws = wb['Sheet1']"` 
 - **Excel File Location**: Use EXCEL_FILE_PATH from config.py (set in .env file) to know where the Excel file is located, don't assume it's in current directory
+
+## Critical Excel Handling Rules
+- **NEVER use pandas**: The system exclusively uses openpyxl to preserve Excel formatting
+- **NO DataFrame operations**: All data operations use openpyxl worksheet cells directly
+- **Formatting preservation**: All updates preserve colors, borders, fonts, column widths
+- **Row-by-row updates**: Use `worksheet[f'{col_letter}{row_num}'] = value` pattern
+- **Dynamic column mapping**: System reads header row to map column names to letters (order-independent)
+- **Column flexibility**: Excel columns can be reordered without breaking the system
 
 ## Documentation
 - **README.md**: Keep things general, do not include specific details about the local specific environment.

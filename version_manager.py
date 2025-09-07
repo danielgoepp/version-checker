@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import pandas as pd
 from datetime import datetime
 import urllib3
 from openpyxl import load_workbook
@@ -31,6 +30,7 @@ from checkers.syncthing import check_syncthing_current_version
 from checkers.awx import check_awx_current_version
 from checkers.postfix import get_postfix_latest_version_from_dockerhub
 from checkers.dockerhub import get_dockerhub_latest_version
+from checkers.hertzbeat import get_hertzbeat_version
 import config
 
 class VersionManager:
@@ -46,123 +46,184 @@ class VersionManager:
         'Unknown': '❓'
     }
     
+    # Expected column names (order-independent)
+    EXPECTED_COLUMNS = [
+        'Name', 'Instance', 'Type', 'Category', 'Target', 
+        'GitHub', 'DockerHub', 'Current_Version', 'Latest_Version', 
+        'Status', 'Last_Checked', 'Check_Current', 'Check_Latest'
+    ]
+    
     def __init__(self, excel_path=None):
         self.excel_path = excel_path or self.DEFAULT_EXCEL_PATH
-        self.df = None
-        self.load_excel()
+        self.workbook = None
+        self.worksheet = None
+        self.columns = {}  # Dynamic column mapping
+        self.load_workbook()
     
-    def load_excel(self):
+    def load_workbook(self):
+        """Load Excel workbook using openpyxl and map columns dynamically"""
         try:
-            self.df = pd.read_excel(self.excel_path, sheet_name=self.SHEET_NAME)
-            print(f"Loaded {len(self.df)} applications from Excel")
+            self.workbook = load_workbook(self.excel_path)
+            self.worksheet = self.workbook[self.SHEET_NAME]
+            
+            # Read header row and create dynamic column mapping
+            self._map_columns()
+            
+            # Count applications (excluding header row)
+            app_count = self.worksheet.max_row - 1 if self.worksheet.max_row > 1 else 0
+            print(f"Loaded {app_count} applications from Excel")
         except FileNotFoundError:
             print(f"Excel file not found: {self.excel_path}")
-            self.df = None
+            self.workbook = None
+            self.worksheet = None
+            self.columns = {}
         except Exception as e:
             print(f"Error loading Excel file: {e}")
-            self.df = None
+            self.workbook = None
+            self.worksheet = None
+            self.columns = {}
     
-    def save_excel(self):
-        """Save data while preserving Excel formatting"""
-        if self.df is None:
-            print("No data to save")
+    def _map_columns(self):
+        """Create dynamic column mapping by reading header row"""
+        self.columns = {}
+        if not self.worksheet:
+            return
+            
+        # Read header row (row 1) and map column names to letters
+        for col_num in range(1, self.worksheet.max_column + 1):
+            col_letter = chr(ord('A') + col_num - 1)
+            header_cell = self.worksheet[f'{col_letter}1']
+            
+            if header_cell.value:
+                column_name = str(header_cell.value).strip()
+                self.columns[column_name] = col_letter
+        
+        # Verify all expected columns are present
+        missing_columns = []
+        for expected_col in self.EXPECTED_COLUMNS:
+            if expected_col not in self.columns:
+                missing_columns.append(expected_col)
+        
+        if missing_columns:
+            print(f"Warning: Missing columns in Excel file: {missing_columns}")
+            print(f"Found columns: {list(self.columns.keys())}")
+    
+    def save_workbook(self):
+        """Save workbook preserving all formatting"""
+        if self.workbook is None:
+            print("No workbook to save")
             return
         try:
-            # Load existing workbook to preserve formatting
-            wb = load_workbook(self.excel_path)
-            ws = wb[self.SHEET_NAME]
-            
-            # Update only the data columns that change, preserving all formatting
-            for idx, row in self.df.iterrows():
-                excel_row = idx + 2  # Excel is 1-indexed, +1 for header row
-                
-                # Update the columns that get modified by version checking
-                if pd.notna(row['Current_Version']):
-                    ws[f'H{excel_row}'] = row['Current_Version']
-                if pd.notna(row['Latest_Version']):
-                    ws[f'I{excel_row}'] = row['Latest_Version']
-                if pd.notna(row['Status']):
-                    ws[f'J{excel_row}'] = row['Status']
-                if pd.notna(row['Last_Checked']):
-                    ws[f'K{excel_row}'] = row['Last_Checked']
-                # Update Notes column if it exists and has data
-                if 'Notes' in row and pd.notna(row['Notes']):
-                    ws[f'L{excel_row}'] = row['Notes']
-            
-            wb.save(self.excel_path)
+            self.workbook.save(self.excel_path)
             print("Excel file updated successfully (formatting preserved)")
         except Exception as e:
             print(f"Error saving Excel file: {e}")
+
+    def get_row_data(self, row_num):
+        """Get all data for a specific row"""
+        if self.worksheet is None or row_num < 2:
+            return None
+        
+        data = {}
+        for col_name, col_letter in self.columns.items():
+            cell = self.worksheet[f'{col_letter}{row_num}']
+            data[col_name] = cell.value if cell.value is not None else ''
+        
+        return data
     
-    def check_single_application(self, index):
-        """Check version for a single application by index"""
-        app = self.df.iloc[index]
+    def update_row_data(self, row_num, updates):
+        """Update specific columns in a row"""
+        if self.worksheet is None:
+            return
         
-        # Use current Name/Instance structure
-        app_name = app['Name']
-        instance = app['Instance']
-        display_name = f"{app_name}" if instance == 'prod' else f"{app_name}-{instance}"
+        for col_name, value in updates.items():
+            if col_name in self.columns:
+                col_letter = self.columns[col_name]
+                self.worksheet[f'{col_letter}{row_num}'] = value
+    
+    def find_application_row(self, app_name, instance='prod'):
+        """Find the row number for a specific application and instance"""
+        if self.worksheet is None or 'Name' not in self.columns or 'Instance' not in self.columns:
+            return None
+        
+        for row_num in range(2, self.worksheet.max_row + 1):
+            name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
+            instance_cell = self.worksheet[f"{self.columns['Instance']}{row_num}"]
             
-        check_current = app['Check_Current']
-        check_latest = app['Check_Latest']
-        github_repo = app['GitHub']
-        dockerhub_repo = app['DockerHub']
+            if (name_cell.value and name_cell.value.lower() == app_name.lower() and
+                instance_cell.value and instance_cell.value.lower() == instance.lower()):
+                return row_num
+        return None
+    
+    def get_latest_version(self, app_name, check_latest, github_repo, dockerhub_repo):
+        """Get latest version based on check_latest method, preferring Docker Hub when available"""
+        latest_version = None
         
-        print(f"Checking {display_name}...")
+        # PREFERENCE: Docker Hub over GitHub when both are available
+        if check_latest == 'github_release' or check_latest == 'github_tag':
+            # Check if Docker Hub is also available - if so, prefer it
+            if dockerhub_repo and dockerhub_repo.strip():
+                print(f"  Found both GitHub ({github_repo}) and Docker Hub ({dockerhub_repo}) - preferring Docker Hub")
+                if app_name == 'MongoDB':
+                    latest_version = get_mongodb_latest_version()
+                elif app_name == 'Graylog':
+                    if 'graylog' in dockerhub_repo.lower():
+                        latest_version = get_graylog_latest_version_from_repo(dockerhub_repo)
+                    elif 'postgres' in dockerhub_repo.lower():
+                        latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
+                    elif 'postfix' in dockerhub_repo.lower():
+                        latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
+                    else:
+                        latest_version = get_dockerhub_latest_version(dockerhub_repo)
+                else:
+                    latest_version = get_dockerhub_latest_version(dockerhub_repo)
+            # Fall back to GitHub if Docker Hub not available or failed
+            elif not latest_version and github_repo and github_repo.strip():
+                if check_latest == 'github_release':
+                    latest_version = get_github_latest_version(github_repo)
+                elif check_latest == 'github_tag':
+                    latest_version = get_github_latest_tag(github_repo)
+        elif check_latest == 'docker_hub':
+            if app_name == 'MongoDB':
+                latest_version = get_mongodb_latest_version()
+            elif dockerhub_repo and dockerhub_repo.strip():
+                if app_name == 'Graylog':
+                    if 'graylog' in dockerhub_repo.lower():
+                        latest_version = get_graylog_latest_version_from_repo(dockerhub_repo)
+                    elif 'postgres' in dockerhub_repo.lower():
+                        latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
+                    elif 'postfix' in dockerhub_repo.lower():
+                        latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
+                else:
+                    latest_version = get_dockerhub_latest_version(dockerhub_repo)
+        elif check_latest == 'proxmox':
+            latest_version = get_proxmox_latest_version(include_ceph=True)
+        # ssh_apt method - latest version will be populated during ssh current check
+        
+        return latest_version
+
+    def get_current_version(self, app_data):
+        """Get current version based on check_current method"""
+        app_name = app_data.get('Name', '')
+        instance = app_data.get('Instance', 'prod')
+        check_current = app_data.get('Check_Current', '')
+        check_latest = app_data.get('Check_Latest', '')
+        url = app_data.get('Target', '')
+        github_repo = app_data.get('GitHub', '')
         
         current_version = None
         latest_version = None
         firmware_update_available = False
         
-        # Get latest version based on check_latest method
-        if check_latest == 'github_release' and github_repo and pd.notna(github_repo):
-            latest_version = get_github_latest_version(github_repo)
-        elif check_latest == 'github_tag' and github_repo and pd.notna(github_repo):
-            if app_name == 'MongoDB':
-                latest_version = get_mongodb_latest_version()
-            elif app_name == 'pgAdmin':
-                raw_tag = get_github_latest_tag(github_repo)
-                if raw_tag and raw_tag.startswith('REL-'):
-                    # Convert REL-9_8 to 9.8
-                    latest_version = raw_tag.replace('REL-', '').replace('_', '.')
-                else:
-                    latest_version = raw_tag
-            else:
-                latest_version = get_github_latest_tag(github_repo)
-        elif check_latest == 'docker_hub' and dockerhub_repo and pd.notna(dockerhub_repo):
-            # Use Repository field for docker_hub method - no hardcoding
-            if app_name == 'Graylog':
-                latest_version = get_graylog_latest_version_from_repo(dockerhub_repo)
-            elif app_name == 'PostgreSQL':
-                latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
-            elif app_name == 'Postfix':
-                latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
-            # No fallback - if docker_hub method fails, we don't get data
-        elif check_latest == 'proxmox' and app_name == 'Proxmox VE':
-            latest_version = get_proxmox_latest_version(include_ceph=True)
-        elif check_latest == 'opnsense' and app_name == 'OPNsense':
-            # OPNsense latest version is handled in the current version check
-            pass
-        elif check_latest == 'tailscale' and app_name == 'Tailscale':
-            # Tailscale latest version is handled in the current version check
-            pass
-        elif check_latest == 'ssh_apt':
-            # SSH-based apt checking for latest available kernel versions
-            # This will be populated during the ssh current version check
-            pass
-        
         # Get current version based on check_current method
         if check_current == 'api':
             if app_name == 'Home Assistant':
-                url = app.get('Target')
                 if url:
                     current_version = get_home_assistant_version(instance, url)
             elif app_name == 'ESPHome':
-                url = app.get('Target')
                 if url:
                     current_version = get_esphome_version(url)
             elif app_name == 'Konnected':
-                url = app.get('Target')
                 if check_latest == 'github_tag':
                     # Project version mode - get from GitHub repository
                     project_version = get_konnected_version(instance, None, github_repo)
@@ -171,10 +232,8 @@ class VersionManager:
                 else:
                     current_version = get_konnected_version(instance, url, github_repo)
             elif app_name == 'Traefik':
-                url = app.get('Target')
                 current_version = get_traefik_version(instance, url)
             elif app_name == 'OPNsense':
-                url = app.get('Target')
                 result = get_opnsense_version(instance, url)
                 if isinstance(result, dict):
                     current_version = result.get('current_version')
@@ -184,7 +243,6 @@ class VersionManager:
                     if result.get('full_version'):
                         latest_version = result['full_version']
             elif app_name == 'Proxmox VE':
-                url = app.get('Target')
                 if url:
                     current_version = get_proxmox_version(instance, url)
             elif app_name == 'Tailscale':
@@ -198,7 +256,6 @@ class VersionManager:
                     # Use counts from API update availability
                     devices_needing_updates = device_results['devices_needing_updates']
                     devices_up_to_date = device_results['devices_up_to_date']
-                    total_devices = device_results['total_devices']
                     
                     # Current version shows count of devices needing updates
                     current_version = f"{devices_needing_updates} need updates"
@@ -206,25 +263,27 @@ class VersionManager:
                     # Latest version shows count of devices up to date  
                     latest_version = f"{devices_up_to_date} up-to-date"
             elif app_name == 'Graylog':
-                url = app.get('Target')
                 if url:
                     current_version = get_graylog_current_version(instance, url)
+            elif app_name == 'HerzBeat':
+                if url:
+                    current_version = get_hertzbeat_version(instance, url)
             elif app_name == 'UniFi Protect':
-                url = app.get('Target')
                 if url:
                     current_version = get_unifi_protect_version(instance, url)
             elif app_name == 'UniFi Network':
-                url = app.get('Target')
                 if url:
                     current_version = get_unifi_network_version(instance, url)
-            elif app_name == 'Syncthing':
-                url = app.get('Target')
-                if url:
-                    current_version = check_syncthing_current_version(instance, url)
-            elif app_name == 'AWX':
-                url = app.get('Target')
-                if url:
-                    current_version = check_awx_current_version(instance, url)
+            # Add more API-based applications here as needed
+        
+        elif check_current == 'ssh':
+            if check_latest == 'ssh_apt':
+                # SSH with kernel checking - this will set both current and latest versions
+                kernel_result = check_server_status(instance, url)
+                if isinstance(kernel_result, dict):
+                    current_version = kernel_result.get('current_version')
+                    latest_version = kernel_result.get('latest_version')
+        
         elif check_current == 'kubectl':
             if app_name == 'Telegraf':
                 current_version = get_telegraf_version(instance)
@@ -252,7 +311,7 @@ class VersionManager:
                 current_version = get_pgadmin_version(instance)
             elif app_name == 'Grafana':
                 current_version = get_grafana_version(instance)
-            elif app_name == 'UniFi Poller':
+            elif app_name == 'UnPoller':
                 current_version = get_unpoller_version(instance)
             elif app_name == 'cert-manager':
                 current_version = get_certmanager_version(instance)
@@ -260,48 +319,68 @@ class VersionManager:
                 current_version = get_k3s_current_version(instance)
             elif app_name == 'Postfix':
                 current_version = get_postfix_version(instance)
+        
         elif check_current == 'mqtt':
             if app_name == 'Zigbee2MQTT':
                 current_version = get_zigbee2mqtt_version(instance)
+        
         elif check_current == 'command':
             if app_name == 'Kopia':
-                url = app.get('Target')
                 current_version = get_kopia_version(instance, url)
-        elif check_current == 'ssh':
-            if app_name == 'Samba':
-                url = app.get('Target')
+            elif app_name == 'Syncthing':
+                current_version = check_syncthing_current_version(instance)
+            elif app_name == 'Samba':
                 current_version = get_samba_version(instance, url)
                 if check_latest == 'ssh_apt':
                     latest_version = get_latest_samba_version(instance)
-            else:
-                # Handle server/hardware Linux version checks via SSH using instance
-                server_info = check_server_status(instance, None)
-                if server_info:
-                    # Combine OS name and kernel version for Current_Version
-                    os_name = server_info['os_name']
-                    kernel = server_info['kernel']
-                    current_version = f"{os_name} - {kernel}"
-                    if check_latest == 'none' or check_latest == 'ssh_apt':
-                        raw_latest = server_info.get('latest_kernel', kernel)
-                        # For ssh_apt, show user-friendly status instead of kernel version
-                        if check_latest == 'ssh_apt':
-                            latest_version = raw_latest if raw_latest == "update available" else "No updates"
-                        else:
-                            latest_version = raw_latest
-                else:
-                    current_version = "SSH Failed"
-                    if check_latest == 'none' or check_latest == 'ssh_apt':
-                        latest_version = "Unknown"
+            elif app_name == 'AWX':
+                current_version = check_awx_current_version(instance)
+        
+        return current_version, latest_version, firmware_update_available
+
+    def check_single_application(self, row_num):
+        """Check version for a single application by row number"""
+        if self.worksheet is None:
+            print("No worksheet loaded")
+            return
+        
+        app_data = self.get_row_data(row_num)
+        if not app_data:
+            return
+            
+        app_name = app_data.get('Name', '')
+        instance = app_data.get('Instance', 'prod')
+        check_current = app_data.get('Check_Current', '')
+        check_latest = app_data.get('Check_Latest', '')
+        github_repo = app_data.get('GitHub', '')
+        dockerhub_repo = app_data.get('DockerHub', '')
+        
+        print(f"Checking {app_name} ({instance})...")
+        
+        # Get latest version
+        latest_version = self.get_latest_version(app_name, check_latest, github_repo, dockerhub_repo)
+        
+        # Get current version (and possibly additional latest version from SSH methods)
+        current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
+        
+        # For SSH-based methods, use the latest version from the SSH check if available
+        if ssh_latest_version:
+            latest_version = ssh_latest_version
+        
+        # Update timestamp
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Prepare updates
+        updates = {'Last_Checked': timestamp}
+        
+        if current_version:
+            updates['Current_Version'] = current_version
+        if latest_version:
+            updates['Latest_Version'] = latest_version
         
         # Update notes if firmware update is available (OPNsense specific)
         if firmware_update_available:
-            self.df.at[index, 'Notes'] = 'Firmware update available'
-        
-        # Update DataFrame
-        if current_version:
-            self.df.at[index, 'Current_Version'] = current_version
-        if latest_version:
-            self.df.at[index, 'Latest_Version'] = latest_version
+            updates['Notes'] = 'Firmware update available'
         
         # Determine status
         status = "Unknown"
@@ -343,122 +422,128 @@ class VersionManager:
         elif current_version and not latest_version:
             status = "Current Version"
         
-        self.df.at[index, 'Status'] = status
-        self.df.at[index, 'Last_Checked'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updates['Status'] = status
         
+        # Update the Excel row
+        self.update_row_data(row_num, updates)
+        
+        # Display results
+        current_display = current_version if current_version else "N/A"
+        latest_display = latest_version if latest_version else "N/A"
         icon = self.STATUS_ICONS.get(status, '')
-        print(f"  Current: {current_version or 'N/A'}")
-        print(f"  Latest: {latest_version or 'N/A'}")
+        
+        print(f"  Current: {current_display}")
+        print(f"  Latest: {latest_display}")
         print(f"  Status: {icon} {status}")
         print()
     
     def check_all_applications(self):
         """Check versions for all applications"""
+        if self.worksheet is None:
+            print("No worksheet loaded")
+            return
+            
         print("Starting version check for all applications...")
         print("=" * 50)
         
-        for index in range(len(self.df)):
-            self.check_single_application(index)
+        for row_num in range(2, self.worksheet.max_row + 1):
+            self.check_single_application(row_num)
         
-        self.save_excel()
+        self.save_workbook()
         print("Version check completed!")
     
     def show_summary(self):
         """Display a summary of version status"""
-        if self.df is None:
-            print("No data loaded")
+        if self.worksheet is None:
+            print("No worksheet loaded")
             return
         
         print("\nVersion Summary:")
         print("=" * 40)
         
-        status_counts = self.df['Status'].value_counts()
+        # Count statuses
+        status_counts = {}
+        total_apps = 0
+        
+        for row_num in range(2, self.worksheet.max_row + 1):
+            if 'Status' in self.columns:
+                status_cell = self.worksheet[f"{self.columns['Status']}{row_num}"]
+                status = status_cell.value if status_cell.value else "Unknown"
+                status_counts[status] = status_counts.get(status, 0) + 1
+            total_apps += 1
+        
         for status, count in status_counts.items():
             icon = self.STATUS_ICONS.get(status, '')
             print(f"{icon} {status}: {count}")
         
-        print(f"\nTotal Applications: {len(self.df)}")
+        print(f"\nTotal Applications: {total_apps}")
         
         # Show outdated applications
-        outdated = self.df[self.df['Status'] == 'Update Available']
-        if not outdated.empty:
-            print(f"\n⚠️  Applications needing updates:")
-            for _, app in outdated.iterrows():
-                app_display = f"{app['Name']}-{app['Instance']}" if app['Instance'] != 'prod' else app['Name']
-                print(f"  {app_display}: {app['Current_Version']} -> {app['Latest_Version']}")
+        print(f"\n⚠️  Applications needing updates:")
+        if all(col in self.columns for col in ['Status', 'Name', 'Instance', 'Current_Version', 'Latest_Version']):
+            for row_num in range(2, self.worksheet.max_row + 1):
+                status_cell = self.worksheet[f"{self.columns['Status']}{row_num}"]
+                if status_cell.value == 'Update Available':
+                    name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
+                    instance_cell = self.worksheet[f"{self.columns['Instance']}{row_num}"]
+                    current_cell = self.worksheet[f"{self.columns['Current_Version']}{row_num}"]
+                    latest_cell = self.worksheet[f"{self.columns['Latest_Version']}{row_num}"]
+                    
+                    name = name_cell.value if name_cell.value else ""
+                    instance = instance_cell.value if instance_cell.value else ""
+                    current = current_cell.value if current_cell.value else "N/A"
+                    latest = latest_cell.value if latest_cell.value else "N/A"
+                    
+                    app_display = f"{name}-{instance}" if instance != 'prod' else name
+                    print(f"  {app_display}: {current} -> {latest}")
+        else:
+            print("  Unable to show updates - missing required columns")
     
     def show_applications(self):
         """Show all applications in a formatted table"""
-        if self.df is None:
-            print("No data loaded")
+        if self.worksheet is None:
+            print("No worksheet loaded")
             return
         
-        # Create a copy with status icons
-        display_df = self.df.copy()
-        
-        # Just use icons for status - no text
-        display_df['Status'] = display_df['Status'].map(lambda x: self.STATUS_ICONS.get(x, x) if pd.notna(x) else x)
-        
-        # Rename columns for display
-        display_df = display_df.rename(columns={
-            'Current_Version': 'Current',
-            'Latest_Version': 'Latest'
-        })
-        
-        # Select key columns for display
-        display_cols = ['Name', 'Instance', 'Current', 'Latest', 'Last_Checked', 'Status']
-        
-        # Only show columns that exist
-        existing_cols = [col for col in display_cols if col in display_df.columns]
-        
-        # Manual formatting with fixed column widths for perfect alignment
-        col_widths = {
-            'Name': 18,
-            'Instance': 22,  # Sized for longest instance name (vms-prod-lt-vmsingle = 20 chars + padding)
-            'Current': 55,   # Sized for full OS name + kernel (e.g. "Debian GNU/Linux 12 (bookworm) - 6.12.34+rpt-rpi-2712" = 53 chars + 2)
-            'Latest': 22,    # Increased for RPi kernel strings like 6.12.34+rpt-rpi-v8
-            'Last_Checked': 20,  # Increased for full timestamp display
-            'Status': 3  # Just icons, small width
-        }
+        print("\nApplications:")
+        print("=" * 120)
         
         # Print header
-        header_parts = []
-        for col in existing_cols:
-            width = col_widths.get(col, 15)
-            header_parts.append(col.ljust(width))
-        print(''.join(header_parts))
+        print(f"{'#':<4} {'Name':<20} {'Instance':<12} {'Type':<18} {'Current':<15} {'Latest':<15} {'Status':<8} {'Target':<30}")
+        print("-" * 120)
         
-        # Print rows
-        for _, row in display_df[existing_cols].iterrows():
-            row_parts = []
-            for col in existing_cols:
-                width = col_widths.get(col, 15)
-                value = str(row[col]) if pd.notna(row[col]) else ''
-                # Handle NaN values
-                if value == 'nan':
-                    value = ''
-                # Simple truncate and pad
-                if len(value) > width:
-                    value = value[:width-3] + '...'
-                row_parts.append(value.ljust(width))
-            print(''.join(row_parts))
+        # Print each row
+        index = 0
+        for row_num in range(2, self.worksheet.max_row + 1):
+            row_data = self.get_row_data(row_num)
+            
+            name = row_data.get('Name', '')[:19] if row_data.get('Name') else ''
+            instance = row_data.get('Instance', '')[:11] if row_data.get('Instance') else ''
+            app_type = row_data.get('Type', '')[:17] if row_data.get('Type') else ''
+            current = row_data.get('Current_Version', '')[:14] if row_data.get('Current_Version') else ''
+            latest = row_data.get('Latest_Version', '')[:14] if row_data.get('Latest_Version') else ''
+            status = row_data.get('Status', '')
+            target = row_data.get('Target', '')[:29] if row_data.get('Target') else ''
+            
+            # Get status icon
+            status_icon = self.STATUS_ICONS.get(status, '') if status else ''
+            
+            print(f"{index:<4} {name:<20} {instance:<12} {app_type:<18} {current:<15} {latest:<15} {status_icon:<8} {target:<30}")
+            index += 1
 
 def main():
+    """Main interactive interface"""
     vm = VersionManager()
     
-    if vm.df is None:
-        return
-    
-    print("Goepp Homelab Version Manager")
-    print("========================")
-    
     while True:
-        print("\nOptions:")
+        print("\n" + "="*50)
+        print("Version Checker Management System")
+        print("="*50)
         print("1. Check all applications")
-        print("2. Check single application") 
+        print("2. Check single application")
         print("3. Show summary")
-        print("4. Show all applications")
-        print("5. Quit")
+        print("4. List all applications")
+        print("5. Exit")
         
         choice = input("\nEnter choice (1-5): ").strip()
         
@@ -468,9 +553,10 @@ def main():
             vm.show_applications()
             try:
                 index = int(input("Enter application number (0-based): "))
-                if 0 <= index < len(vm.df):
-                    vm.check_single_application(index)
-                    vm.save_excel()
+                row_num = index + 2  # Convert to Excel row number
+                if 2 <= row_num <= vm.worksheet.max_row:
+                    vm.check_single_application(row_num)
+                    vm.save_workbook()
                 else:
                     print("Invalid index")
             except ValueError:
@@ -482,7 +568,7 @@ def main():
         elif choice == '5':
             break
         else:
-            print("Invalid choice")
+            print("Invalid choice. Please enter 1-5.")
 
 if __name__ == "__main__":
     main()
