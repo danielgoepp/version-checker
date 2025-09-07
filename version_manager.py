@@ -3,6 +3,7 @@
 import pandas as pd
 from datetime import datetime
 import urllib3
+from openpyxl import load_workbook
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
 # Import all version checkers
@@ -62,13 +63,34 @@ class VersionManager:
             self.df = None
     
     def save_excel(self):
+        """Save data while preserving Excel formatting"""
         if self.df is None:
             print("No data to save")
             return
         try:
-            with pd.ExcelWriter(self.excel_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-                self.df.to_excel(writer, sheet_name=self.SHEET_NAME, index=False)
-            print("Excel file updated successfully")
+            # Load existing workbook to preserve formatting
+            wb = load_workbook(self.excel_path)
+            ws = wb[self.SHEET_NAME]
+            
+            # Update only the data columns that change, preserving all formatting
+            for idx, row in self.df.iterrows():
+                excel_row = idx + 2  # Excel is 1-indexed, +1 for header row
+                
+                # Update the columns that get modified by version checking
+                if pd.notna(row['Current_Version']):
+                    ws[f'H{excel_row}'] = row['Current_Version']
+                if pd.notna(row['Latest_Version']):
+                    ws[f'I{excel_row}'] = row['Latest_Version']
+                if pd.notna(row['Status']):
+                    ws[f'J{excel_row}'] = row['Status']
+                if pd.notna(row['Last_Checked']):
+                    ws[f'K{excel_row}'] = row['Last_Checked']
+                # Update Notes column if it exists and has data
+                if 'Notes' in row and pd.notna(row['Notes']):
+                    ws[f'L{excel_row}'] = row['Notes']
+            
+            wb.save(self.excel_path)
+            print("Excel file updated successfully (formatting preserved)")
         except Exception as e:
             print(f"Error saving Excel file: {e}")
     
