@@ -56,9 +56,26 @@ def get_dockerhub_latest_version(repository, version_pattern=None, exclude_tags=
         if versions:
             # Sort versions numerically and return the highest
             def version_key(v):
-                # Handle versions like "1.2.3" or "1.2"
-                parts = v.split('.')
-                return tuple(int(part) for part in parts)
+                # Handle MinIO's date format (YYYY-MM-DDTHH-MM-SSZ)
+                if 'T' in v and 'Z' in v:
+                    # Parse MinIO date format for sorting
+                    try:
+                        from datetime import datetime
+                        # Convert format like "2025-07-23T15-54-02Z" to datetime for sorting
+                        date_part = v.replace('-', ':', 2).replace('-', ':', 1)  # Fix time format
+                        date_part = date_part.replace(':', '-', 2)  # Keep date format
+                        return datetime.strptime(date_part, "%Y-%m-%dT%H:%M:%SZ")
+                    except:
+                        # If parsing fails, fall back to string sorting
+                        return v
+                else:
+                    # Handle standard semantic versions like "1.2.3" or "1.2"
+                    try:
+                        parts = v.split('.')
+                        return tuple(int(part) for part in parts)
+                    except:
+                        # If parsing fails, fall back to string sorting
+                        return v
             
             versions.sort(key=version_key, reverse=True)
             return versions[0]

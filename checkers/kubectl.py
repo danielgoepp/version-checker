@@ -248,3 +248,28 @@ def get_hertzbeat_kubectl_version(instance):
                 return match.group(1)
     
     return None
+
+
+def get_minio_kubectl_version(instance):
+    """Get MinIO version from Kubernetes pod using kubectl"""
+    checker = KubernetesChecker(instance, namespace="minio-tenant-goepp")
+    
+    # Try to find MinIO pod
+    pod_name = checker.find_pod("minio-goepp-pool-0")
+    
+    if not pod_name:
+        return None
+    
+    # Get version from pod description (image tag)
+    description = checker.describe_resource("pod", pod_name)
+    if description:
+        # Look for image version in the pod description
+        # Typically: minio/minio:RELEASE.2024-01-01T00-00-00Z or minio:latest
+        image_checker = ImageVersionChecker(instance, namespace="minio-tenant-goepp")
+        version = image_checker.get_image_version_from_description(description, "minio", 
+                                                                   version_pattern=r"RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)")
+        
+        if version:
+            return version
+    
+    return None

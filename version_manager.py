@@ -14,7 +14,7 @@ from checkers.opnsense import get_opnsense_version
 from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
-from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version, get_postfix_version, get_hertzbeat_kubectl_version
+from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version, get_postfix_version, get_hertzbeat_kubectl_version, get_minio_kubectl_version
 from checkers.postgres import get_cnpg_operator_version, get_postgres_version
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
@@ -174,6 +174,12 @@ class VersionManager:
                         latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
                     else:
                         latest_version = get_dockerhub_latest_version(dockerhub_repo)
+                elif app_name == 'MinIO':
+                    # MinIO uses RELEASE.YYYY-MM-DDTHH-MM-SSZ format
+                    import re
+                    latest_version = get_dockerhub_latest_version(dockerhub_repo, 
+                        version_pattern=r'^RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-[a-z0-9]+)?$',
+                        exclude_tags=['latest'])
                 else:
                     latest_version = get_dockerhub_latest_version(dockerhub_repo)
             # Fall back to GitHub if Docker Hub not available or failed
@@ -195,6 +201,12 @@ class VersionManager:
                         latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
                 else:
                     latest_version = get_dockerhub_latest_version(dockerhub_repo)
+            elif app_name == 'MinIO':
+                # MinIO uses RELEASE.YYYY-MM-DDTHH-MM-SSZ format
+                import re
+                latest_version = get_dockerhub_latest_version(dockerhub_repo, 
+                    version_pattern=r'^RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-[a-z0-9]+)?$',
+                    exclude_tags=['latest'])
         elif check_latest == 'proxmox':
             latest_version = get_proxmox_latest_version(include_ceph=True)
         # ssh_apt method - latest version will be populated during ssh current check
@@ -317,6 +329,8 @@ class VersionManager:
                 current_version = get_postfix_version(instance)
             elif app_name == 'HertzBeat':
                 current_version = get_hertzbeat_kubectl_version(instance)
+            elif app_name == 'MinIO':
+                current_version = get_minio_kubectl_version(instance)
         
         elif check_current == 'mqtt':
             if app_name == 'Zigbee2MQTT':

@@ -172,6 +172,12 @@ The system uses two separate columns for version checking:
 - **Import pattern**: Import checker functions in `version_manager.py`
 - **Unified approach**: linux_kernel.py handles all Linux distributions (57 lines vs 220 lines previously)
 
+### No Fallback Methods Rule
+- **Single method implementation**: Once a working method is identified, implement only that method with proper error handling
+- **No alternative approaches**: Avoid fallback logic that tries multiple methods when the primary fails
+- **Clean failure**: If the intended method fails, let it fail cleanly rather than masking issues with fallbacks
+- **Explicit behavior**: Makes debugging easier and keeps code focused on the intended approach
+
 ### Excel Structure Preservation
 - **Column Structure**: Name, Instance, Type, Category, Target, GitHub, DockerHub, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
 - **Target Column**: Store complete URLs with protocols in Excel
