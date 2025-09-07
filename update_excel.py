@@ -59,8 +59,8 @@ def update_excel_structure():
                 try:
                     if cell.value and len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                except:
-                    pass
+                except (TypeError, AttributeError):
+                    pass  # Skip cells with problematic values
         
         # Set adjusted width (with reasonable limits)
         adjusted_width = min(max_length + 2, 50)

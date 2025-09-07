@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from datetime import datetime
+import re
 import urllib3
 from openpyxl import load_workbook
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
@@ -14,7 +15,13 @@ from checkers.opnsense import get_opnsense_version
 from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
-from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version, get_postfix_version, get_hertzbeat_kubectl_version, get_minio_kubectl_version
+from checkers.kubectl import (
+    get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, 
+    get_calico_version, get_metallb_version, get_alertmanager_version, 
+    get_fluentbit_version, get_mongodb_version, get_opensearch_version, 
+    get_pgadmin_version, get_unpoller_version, get_certmanager_version, 
+    get_postfix_version, get_hertzbeat_kubectl_version, get_minio_kubectl_version
+)
 from checkers.postgres import get_cnpg_operator_version, get_postgres_version
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
@@ -154,65 +161,48 @@ class VersionManager:
                 return row_num
         return None
     
+    def _get_dockerhub_version_for_app(self, app_name, dockerhub_repo):
+        """Helper method to get Docker Hub version for specific applications"""
+        if app_name == 'MongoDB':
+            return get_mongodb_latest_version()
+        elif app_name == 'Graylog':
+            if 'graylog' in dockerhub_repo.lower():
+                return get_graylog_latest_version_from_repo(dockerhub_repo)
+            elif 'postgres' in dockerhub_repo.lower():
+                return get_postgresql_latest_version_from_ghcr(dockerhub_repo)
+            elif 'postfix' in dockerhub_repo.lower():
+                return get_postfix_latest_version_from_dockerhub(dockerhub_repo)
+            else:
+                return get_dockerhub_latest_version(dockerhub_repo)
+        elif app_name == 'MinIO':
+            # MinIO uses RELEASE.YYYY-MM-DDTHH-MM-SSZ format
+            return get_dockerhub_latest_version(dockerhub_repo, 
+                version_pattern=r'^RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-[a-z0-9]+)?$',
+                exclude_tags=['latest'])
+        else:
+            return get_dockerhub_latest_version(dockerhub_repo)
+    
+    def _get_github_version_for_app(self, app_name, github_repo, check_latest):
+        """Helper method to get GitHub version for specific applications"""
+        if app_name == 'MongoDB':
+            return get_mongodb_latest_version()
+        elif check_latest == 'github_release':
+            return get_github_latest_version(github_repo)
+        elif check_latest == 'github_tag':
+            return get_github_latest_tag(github_repo)
+        return None
+    
     def get_latest_version(self, app_name, check_latest, github_repo, dockerhub_repo):
-        """Get latest version based on check_latest method, preferring Docker Hub when available"""
+        """Get latest version based on check_latest method"""
         latest_version = None
         
-        # PREFERENCE: Docker Hub over GitHub when both are available
+        # Get latest version based on check_latest method
         if check_latest == 'github_release' or check_latest == 'github_tag':
-            # Check if Docker Hub is also available - if so, prefer it
-            if dockerhub_repo and dockerhub_repo.strip():
-                print(f"  Found both GitHub ({github_repo}) and Docker Hub ({dockerhub_repo}) - preferring Docker Hub")
-                if app_name == 'MongoDB':
-                    latest_version = get_mongodb_latest_version()
-                elif app_name == 'Graylog':
-                    if 'graylog' in dockerhub_repo.lower():
-                        latest_version = get_graylog_latest_version_from_repo(dockerhub_repo)
-                    elif 'postgres' in dockerhub_repo.lower():
-                        latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
-                    elif 'postfix' in dockerhub_repo.lower():
-                        latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
-                    else:
-                        latest_version = get_dockerhub_latest_version(dockerhub_repo)
-                elif app_name == 'MinIO':
-                    # MinIO uses RELEASE.YYYY-MM-DDTHH-MM-SSZ format
-                    import re
-                    latest_version = get_dockerhub_latest_version(dockerhub_repo, 
-                        version_pattern=r'^RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-[a-z0-9]+)?$',
-                        exclude_tags=['latest'])
-                else:
-                    latest_version = get_dockerhub_latest_version(dockerhub_repo)
-            # Fall back to GitHub if Docker Hub not available or failed
-            elif not latest_version and github_repo and github_repo.strip():
-                if check_latest == 'github_release':
-                    if app_name == 'MongoDB':
-                        latest_version = get_mongodb_latest_version()
-                    else:
-                        latest_version = get_github_latest_version(github_repo)
-                elif check_latest == 'github_tag':
-                    if app_name == 'MongoDB':
-                        latest_version = get_mongodb_latest_version()
-                    else:
-                        latest_version = get_github_latest_tag(github_repo)
+            if github_repo and github_repo.strip():
+                latest_version = self._get_github_version_for_app(app_name, github_repo, check_latest)
         elif check_latest == 'docker_hub':
-            if app_name == 'MongoDB':
-                latest_version = get_mongodb_latest_version()
-            elif dockerhub_repo and dockerhub_repo.strip():
-                if app_name == 'Graylog':
-                    if 'graylog' in dockerhub_repo.lower():
-                        latest_version = get_graylog_latest_version_from_repo(dockerhub_repo)
-                    elif 'postgres' in dockerhub_repo.lower():
-                        latest_version = get_postgresql_latest_version_from_ghcr(dockerhub_repo)
-                    elif 'postfix' in dockerhub_repo.lower():
-                        latest_version = get_postfix_latest_version_from_dockerhub(dockerhub_repo)
-                else:
-                    latest_version = get_dockerhub_latest_version(dockerhub_repo)
-            elif app_name == 'MinIO':
-                # MinIO uses RELEASE.YYYY-MM-DDTHH-MM-SSZ format
-                import re
-                latest_version = get_dockerhub_latest_version(dockerhub_repo, 
-                    version_pattern=r'^RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-[a-z0-9]+)?$',
-                    exclude_tags=['latest'])
+            if dockerhub_repo and dockerhub_repo.strip():
+                latest_version = self._get_dockerhub_version_for_app(app_name, dockerhub_repo)
         elif check_latest == 'proxmox':
             latest_version = get_proxmox_latest_version(include_ceph=True)
         # ssh_apt method - latest version will be populated during ssh current check

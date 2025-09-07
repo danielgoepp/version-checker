@@ -1,4 +1,5 @@
 from .utils import http_get
+from datetime import datetime
 import re
 
 
@@ -60,12 +61,11 @@ def get_dockerhub_latest_version(repository, version_pattern=None, exclude_tags=
                 if 'T' in v and 'Z' in v:
                     # Parse MinIO date format for sorting
                     try:
-                        from datetime import datetime
                         # Convert format like "2025-07-23T15-54-02Z" to datetime for sorting
                         date_part = v.replace('-', ':', 2).replace('-', ':', 1)  # Fix time format
                         date_part = date_part.replace(':', '-', 2)  # Keep date format
                         return datetime.strptime(date_part, "%Y-%m-%dT%H:%M:%SZ")
-                    except:
+                    except (ValueError, AttributeError):
                         # If parsing fails, fall back to string sorting
                         return v
                 else:
@@ -73,7 +73,7 @@ def get_dockerhub_latest_version(repository, version_pattern=None, exclude_tags=
                     try:
                         parts = v.split('.')
                         return tuple(int(part) for part in parts)
-                    except:
+                    except (ValueError, AttributeError):
                         # If parsing fails, fall back to string sorting
                         return v
             
