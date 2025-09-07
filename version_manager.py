@@ -39,6 +39,7 @@ from checkers.postfix import get_postfix_latest_version_from_dockerhub
 from checkers.dockerhub import get_dockerhub_latest_version
 from checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
 from checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper_version, get_wyoming_whisper_version
+from checkers.ollama import get_ollama_version
 import config
 
 class VersionManager:
@@ -289,6 +290,9 @@ class VersionManager:
             elif app_name == 'n8n':
                 if url:
                     current_version = get_n8n_version_api(instance, url)
+            elif app_name == 'Ollama':
+                if url:
+                    current_version = get_ollama_version(instance, url)
             # Add more API-based applications here as needed
         
         elif check_current == 'ssh':
