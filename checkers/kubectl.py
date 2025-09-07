@@ -211,3 +211,40 @@ def get_postfix_version(instance):
     if output:
         # Parse "mail_version = 3.7.11" format
         return checker.get_version_from_command_output(output, r"mail_version = (\d+\.\d+\.\d+)")
+
+
+def get_hertzbeat_kubectl_version(instance):
+    """Get HertzBeat version from Kubernetes pod using kubectl"""
+    checker = KubernetesChecker(instance, namespace="hertzbeat")
+    
+    # Try to find HertzBeat pod
+    pod_name = checker.find_pod("hertzbeat")
+    
+    if not pod_name:
+        return None
+    
+    # Get version from pod description (image tag)
+    description = checker.describe_resource("pod", pod_name)
+    if description:
+        # Look for image version in the pod description
+        # Typically: apache/hertzbeat:1.7.3 or hertzbeat:v1.7.3
+        image_checker = ImageVersionChecker(instance, namespace="hertzbeat")
+        version = image_checker.get_image_version_from_description(description, "hertzbeat")
+        
+        if version:
+            return version
+        
+        # Alternative: try to parse from image line directly
+        import re
+        image_patterns = [
+            r'apache/hertzbeat:v?(\d+\.\d+\.\d+)',
+            r'hertzbeat:v?(\d+\.\d+\.\d+)',
+            r'Image:\s+.*hertzbeat.*:v?(\d+\.\d+\.\d+)'
+        ]
+        
+        for pattern in image_patterns:
+            match = re.search(pattern, description)
+            if match:
+                return match.group(1)
+    
+    return None

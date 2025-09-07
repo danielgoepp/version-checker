@@ -14,7 +14,7 @@ from checkers.opnsense import get_opnsense_version
 from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from checkers.kopia import get_kopia_version
-from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version, get_postfix_version
+from checkers.kubectl import get_telegraf_version, get_mosquitto_version, get_victoriametrics_version, get_calico_version, get_metallb_version, get_alertmanager_version, get_fluentbit_version, get_mongodb_version, get_opensearch_version, get_pgadmin_version, get_unpoller_version, get_certmanager_version, get_postfix_version, get_hertzbeat_kubectl_version
 from checkers.postgres import get_cnpg_operator_version, get_postgres_version
 from checkers.server_status import check_server_status
 from checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
@@ -30,7 +30,6 @@ from checkers.syncthing import check_syncthing_current_version
 from checkers.awx import check_awx_current_version
 from checkers.postfix import get_postfix_latest_version_from_dockerhub
 from checkers.dockerhub import get_dockerhub_latest_version
-from checkers.hertzbeat import get_hertzbeat_version
 import config
 
 class VersionManager:
@@ -265,9 +264,6 @@ class VersionManager:
             elif app_name == 'Graylog':
                 if url:
                     current_version = get_graylog_current_version(instance, url)
-            elif app_name == 'HerzBeat':
-                if url:
-                    current_version = get_hertzbeat_version(instance, url)
             elif app_name == 'UniFi Protect':
                 if url:
                     current_version = get_unifi_protect_version(instance, url)
@@ -319,6 +315,8 @@ class VersionManager:
                 current_version = get_k3s_current_version(instance)
             elif app_name == 'Postfix':
                 current_version = get_postfix_version(instance)
+            elif app_name == 'HertzBeat':
+                current_version = get_hertzbeat_kubectl_version(instance)
         
         elif check_current == 'mqtt':
             if app_name == 'Zigbee2MQTT':
