@@ -20,32 +20,22 @@ def update_excel_structure():
         print(f"Error reading existing Excel file: {e}")
         return None
     
-    # Column mapping for cleanup
-    column_mapping = {
-        'Name': 'A',
-        'Instance': 'B', 
-        'Type': 'C',
-        'Category': 'D',
-        'Target': 'E',
-        'GitHub': 'F',
-        'DockerHub': 'G',
-        'Current_Version': 'H',
-        'Latest_Version': 'I',
-        'Status': 'J',
-        'Last_Checked': 'K',
-        'Check_Current': 'L',
-        'Check_Latest': 'M'
-    }
+    # Dynamic column mapping - read from header row
+    column_mapping = {}
+    for col_num in range(1, worksheet.max_column + 1):
+        col_letter = chr(ord('A') + col_num - 1)
+        header_cell = worksheet[f'{col_letter}1']
+        if header_cell.value:
+            column_name = str(header_cell.value).strip()
+            column_mapping[column_name] = col_letter
     
     # Check if any unwanted columns exist and remove them
     # This would need manual identification of unwanted columns by their letter positions
     # For safety, we'll just report the current structure
     
     print("Current column structure:")
-    header_row = 1
-    for col_name, col_letter in column_mapping.items():
-        cell = worksheet[f'{col_letter}{header_row}']
-        print(f"  {col_letter}: {cell.value}")
+    for col_name, col_letter in sorted(column_mapping.items(), key=lambda x: x[1]):
+        print(f"  {col_letter}: {col_name}")
     
     # Auto-adjust column widths while preserving formatting
     for col_name, col_letter in column_mapping.items():
