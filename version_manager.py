@@ -42,6 +42,7 @@ from checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper
 from checkers.ollama import get_ollama_version
 from checkers.docker import get_docker_version
 from checkers.portainer import get_portainer_version
+from checkers.open_webui import get_open_webui_version
 import config
 
 class VersionManager:
@@ -298,6 +299,9 @@ class VersionManager:
             elif app_name == 'Portainer':
                 if url:
                     current_version = get_portainer_version(instance, url)
+            elif app_name == 'Open WebUI':
+                if url:
+                    current_version = get_open_webui_version(instance, url)
             # Add more API-based applications here as needed
         
         elif check_current == 'ssh':
