@@ -41,6 +41,7 @@ from checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
 from checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper_version, get_wyoming_whisper_version
 from checkers.ollama import get_ollama_version
 from checkers.docker import get_docker_version
+from checkers.portainer import get_portainer_version
 import config
 
 class VersionManager:
@@ -294,6 +295,9 @@ class VersionManager:
             elif app_name == 'Ollama':
                 if url:
                     current_version = get_ollama_version(instance, url)
+            elif app_name == 'Portainer':
+                if url:
+                    current_version = get_portainer_version(instance, url)
             # Add more API-based applications here as needed
         
         elif check_current == 'ssh':
