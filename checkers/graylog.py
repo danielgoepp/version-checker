@@ -42,7 +42,11 @@ def get_graylog_current_version(instance, url):
 
 def get_graylog_latest_version_from_repo(repository):
     """Get latest Graylog version from GitHub Docker repository tags"""
-    data = http_get(f"https://api.github.com/repos/{repository}/tags?per_page=100")
+    headers = {}
+    if hasattr(__import__('config'), 'GITHUB_API_TOKEN') and __import__('config').GITHUB_API_TOKEN:
+        headers['Authorization'] = f'token {__import__("config").GITHUB_API_TOKEN}'
+    
+    data = http_get(f"https://api.github.com/repos/{repository}/tags?per_page=100", headers=headers)
     if data and isinstance(data, list):
         # Filter for stable releases only
         for tag in data:

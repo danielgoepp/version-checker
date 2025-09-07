@@ -96,6 +96,7 @@ The system uses two separate columns for version checking:
 - **MQTT**: `config.MQTT_BROKER`, `config.MQTT_USERNAME`, `config.MQTT_PASSWORD`
 - **Home Assistant**: `config.HA_TOKENS` dictionary by instance
 - **OPNsense**: `config.OPNSENSE_API_KEY`, `config.OPNSENSE_API_SECRET`
+- **GitHub API**: `config.GITHUB_API_TOKEN` for rate limit avoidance (60/hour unauthenticated vs 5,000/hour authenticated)
 
 ### Kubernetes Integration
 - **Namespace-aware**: Telegraf pods in `telegraf` namespace

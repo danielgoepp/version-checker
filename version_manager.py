@@ -185,9 +185,15 @@ class VersionManager:
             # Fall back to GitHub if Docker Hub not available or failed
             elif not latest_version and github_repo and github_repo.strip():
                 if check_latest == 'github_release':
-                    latest_version = get_github_latest_version(github_repo)
+                    if app_name == 'MongoDB':
+                        latest_version = get_mongodb_latest_version()
+                    else:
+                        latest_version = get_github_latest_version(github_repo)
                 elif check_latest == 'github_tag':
-                    latest_version = get_github_latest_tag(github_repo)
+                    if app_name == 'MongoDB':
+                        latest_version = get_mongodb_latest_version()
+                    else:
+                        latest_version = get_github_latest_tag(github_repo)
         elif check_latest == 'docker_hub':
             if app_name == 'MongoDB':
                 latest_version = get_mongodb_latest_version()
@@ -282,6 +288,12 @@ class VersionManager:
             elif app_name == 'UniFi Network':
                 if url:
                     current_version = get_unifi_network_version(instance, url)
+            elif app_name == 'AWX':
+                if url:
+                    current_version = check_awx_current_version(instance, url)
+            elif app_name == 'Syncthing':
+                if url:
+                    current_version = check_syncthing_current_version(instance, url)
             # Add more API-based applications here as needed
         
         elif check_current == 'ssh':
@@ -319,7 +331,7 @@ class VersionManager:
                 current_version = get_pgadmin_version(instance)
             elif app_name == 'Grafana':
                 current_version = get_grafana_version(instance)
-            elif app_name == 'UnPoller':
+            elif app_name == 'UniFi Poller':
                 current_version = get_unpoller_version(instance)
             elif app_name == 'cert-manager':
                 current_version = get_certmanager_version(instance)
@@ -339,14 +351,10 @@ class VersionManager:
         elif check_current == 'command':
             if app_name == 'Kopia':
                 current_version = get_kopia_version(instance, url)
-            elif app_name == 'Syncthing':
-                current_version = check_syncthing_current_version(instance)
             elif app_name == 'Samba':
                 current_version = get_samba_version(instance, url)
                 if check_latest == 'ssh_apt':
                     latest_version = get_latest_samba_version(instance)
-            elif app_name == 'AWX':
-                current_version = check_awx_current_version(instance)
         
         return current_version, latest_version, firmware_update_available
 
@@ -512,36 +520,62 @@ class VersionManager:
             print("  Unable to show updates - missing required columns")
     
     def show_applications(self):
-        """Show all applications in a formatted table"""
+        """Show all applications in a formatted table with dynamic column widths"""
         if self.worksheet is None:
             print("No worksheet loaded")
             return
         
-        print("\nApplications:")
-        print("=" * 120)
+        # First pass: collect all data and calculate maximum widths
+        all_data = []
+        max_widths = {
+            'index': 4,
+            'name': len('Name'),
+            'instance': len('Instance'), 
+            'current': len('Current'),
+            'latest': len('Latest'),
+            'status': 3  # Just space for status icon
+        }
         
-        # Print header
-        print(f"{'#':<4} {'Name':<20} {'Instance':<12} {'Type':<18} {'Current':<15} {'Latest':<15} {'Status':<8} {'Target':<30}")
-        print("-" * 120)
-        
-        # Print each row
-        index = 0
         for row_num in range(2, self.worksheet.max_row + 1):
             row_data = self.get_row_data(row_num)
             
-            name = row_data.get('Name', '')[:19] if row_data.get('Name') else ''
-            instance = row_data.get('Instance', '')[:11] if row_data.get('Instance') else ''
-            app_type = row_data.get('Type', '')[:17] if row_data.get('Type') else ''
-            current = row_data.get('Current_Version', '')[:14] if row_data.get('Current_Version') else ''
-            latest = row_data.get('Latest_Version', '')[:14] if row_data.get('Latest_Version') else ''
-            status = row_data.get('Status', '')
-            target = row_data.get('Target', '')[:29] if row_data.get('Target') else ''
+            name = str(row_data.get('Name', '')) if row_data.get('Name') else ''
+            instance = str(row_data.get('Instance', '')) if row_data.get('Instance') else ''
+            current = str(row_data.get('Current_Version', '')) if row_data.get('Current_Version') else ''
+            latest = str(row_data.get('Latest_Version', '')) if row_data.get('Latest_Version') else ''
+            status = str(row_data.get('Status', '')) if row_data.get('Status') else ''
             
-            # Get status icon
-            status_icon = self.STATUS_ICONS.get(status, '') if status else ''
+            # Update max widths
+            max_widths['name'] = max(max_widths['name'], len(name))
+            max_widths['instance'] = max(max_widths['instance'], len(instance))
+            max_widths['current'] = max(max_widths['current'], len(current))
+            max_widths['latest'] = max(max_widths['latest'], len(latest))
             
-            print(f"{index:<4} {name:<20} {instance:<12} {app_type:<18} {current:<15} {latest:<15} {status_icon:<8} {target:<30}")
-            index += 1
+            all_data.append({
+                'name': name,
+                'instance': instance,
+                'current': current,
+                'latest': latest,
+                'status': status
+            })
+        
+        # Calculate total width and print header
+        total_width = sum(max_widths.values()) + len(max_widths) * 2  # +2 for spacing between columns
+        
+        print("\nApplications:")
+        print("=" * total_width)
+        
+        # Print header with dynamic widths
+        print(f"{'#':<{max_widths['index']}} {'Name':<{max_widths['name']}} {'Instance':<{max_widths['instance']}} {'Current':<{max_widths['current']}} {'Latest':<{max_widths['latest']}} {'':<{max_widths['status']}}")
+        print("-" * total_width)
+        
+        # Print each row with dynamic widths
+        for index, data in enumerate(all_data):
+            status_icon = self.STATUS_ICONS.get(data['status'], '') if data['status'] else ''
+            
+            print(f"{index:<{max_widths['index']}} {data['name']:<{max_widths['name']}} {data['instance']:<{max_widths['instance']}} {data['current']:<{max_widths['current']}} {data['latest']:<{max_widths['latest']}} {status_icon:<{max_widths['status']}}")
+        
+        print(f"\nTotal: {len(all_data)} applications")
 
 def main():
     """Main interactive interface"""

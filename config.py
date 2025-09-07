@@ -81,3 +81,6 @@ AWX_API_TOKENS = {}
 awx_prod_token = get_optional_env('AWX_API_TOKEN_PROD', None, 'AWX production API token')
 if awx_prod_token:
     AWX_API_TOKENS['prod'] = awx_prod_token
+
+# GitHub API credentials - OPTIONAL (for rate limit avoidance)
+GITHUB_API_TOKEN = get_optional_env('GITHUB_TOKEN', None, 'GitHub personal access token for API rate limit avoidance')

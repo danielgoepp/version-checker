@@ -39,7 +39,20 @@ def check_server_status(instance, target):
                 # Always use instance as SSH target (not target column)
                 latest_kernel = get_latest_linux_kernel_version(kernel, instance)
 
+                # Format current version as "OS Name - Kernel Version"
+                current_version = f"{pretty_name} - {kernel}"
+                
+                # Format latest version based on kernel update status
+                if latest_kernel == "update available":
+                    latest_version = "Update available"
+                elif latest_kernel == "no update":
+                    latest_version = "No updates"
+                else:
+                    latest_version = "No updates"
+                
                 return {
+                    "current_version": current_version,
+                    "latest_version": latest_version,
                     "hostname": hostname,
                     "kernel": kernel,
                     "latest_kernel": latest_kernel,

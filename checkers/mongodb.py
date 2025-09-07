@@ -1,9 +1,14 @@
 from .utils import http_get
 import re
+import config
 
 def get_mongodb_latest_version():
     """Get latest MongoDB version from GitHub tags"""
-    data = http_get("https://api.github.com/repos/mongodb/mongo/tags?per_page=100")
+    headers = {}
+    if config.GITHUB_API_TOKEN:
+        headers['Authorization'] = f'token {config.GITHUB_API_TOKEN}'
+    
+    data = http_get("https://api.github.com/repos/mongodb/mongo/tags?per_page=100", headers=headers)
     if data and isinstance(data, list):
         # Filter for stable release tags (format: r8.2.0, r7.0.5, etc.)
         # Exclude alpha, rc, beta versions

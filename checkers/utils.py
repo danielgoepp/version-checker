@@ -62,10 +62,23 @@ def extract_semantic_version(text, pattern=r'v?(\d+\.\d+\.\d+)'):
 
 
 def parse_json_version(json_text, version_field='version'):
-    """Parse version from JSON text"""
+    """Parse version from JSON text with support for nested field paths"""
     try:
         data = json.loads(json_text) if isinstance(json_text, str) else json_text
-        return data.get(version_field)
+        
+        # Handle nested field paths like "version.number"
+        if '.' in version_field:
+            field_parts = version_field.split('.')
+            current_data = data
+            for part in field_parts:
+                if isinstance(current_data, dict) and part in current_data:
+                    current_data = current_data[part]
+                else:
+                    return None
+            return current_data
+        else:
+            # Simple field access
+            return data.get(version_field)
     except (json.JSONDecodeError, TypeError):
         return None
 
