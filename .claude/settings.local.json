@@ -12,7 +12,8 @@
       "Bash(./check_versions.py:*)",
       "Bash(kubectl exec:*)",
       "Bash(curl:*)",
-      "Bash(source venv/bin/activate && ./check_versions.py:*)"
+      "Bash(source venv/bin/activate && ./check_versions.py:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []
