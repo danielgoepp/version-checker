@@ -40,6 +40,7 @@ from checkers.dockerhub import get_dockerhub_latest_version
 from checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
 from checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper_version, get_wyoming_whisper_version
 from checkers.ollama import get_ollama_version
+from checkers.docker import get_docker_version
 import config
 
 class VersionManager:
@@ -362,6 +363,8 @@ class VersionManager:
                 current_version = get_samba_version(instance, url)
                 if check_latest == 'ssh_apt':
                     latest_version = get_latest_samba_version(instance)
+            elif app_name == 'Docker':
+                current_version = get_docker_version(instance, url)
         
         return current_version, latest_version, firmware_update_available
 
