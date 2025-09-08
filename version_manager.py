@@ -10,7 +10,7 @@ urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 from checkers.github import get_github_latest_version, get_github_latest_tag
 from checkers.home_assistant import get_home_assistant_version
 from checkers.esphome import get_esphome_version
-from checkers.konnected import get_konnected_version
+from checkers.konnected import get_konnected_version, get_konnected_current_version
 from checkers.opnsense import get_opnsense_version
 from checkers.k3s import get_k3s_current_version
 from checkers.zigbee2mqtt import get_zigbee2mqtt_version
@@ -205,7 +205,11 @@ class VersionManager:
         # Get latest version based on check_latest method
         if check_latest == 'github_release' or check_latest == 'github_tag':
             if github_repo and github_repo.strip():
-                latest_version = self._get_github_version_for_app(app_name, github_repo, check_latest)
+                # Special case for Konnected - use YAML project_version instead of GitHub tags
+                if app_name == 'Konnected':
+                    latest_version = get_konnected_version('latest', None, github_repo)
+                else:
+                    latest_version = self._get_github_version_for_app(app_name, github_repo, check_latest)
         elif check_latest == 'docker_hub':
             if dockerhub_repo and dockerhub_repo.strip():
                 latest_version = self._get_dockerhub_version_for_app(app_name, dockerhub_repo)
@@ -237,13 +241,8 @@ class VersionManager:
                 if url:
                     current_version = get_esphome_version(url)
             elif app_name == 'Konnected':
-                if check_latest == 'github_tag':
-                    # Project version mode - get from GitHub repository
-                    project_version = get_konnected_version(instance, None, github_repo)
-                    latest_version = project_version
-                    current_version = project_version
-                else:
-                    current_version = get_konnected_version(instance, url, github_repo)
+                # Check device API for current version
+                current_version = get_konnected_current_version(instance, url)
             elif app_name == 'Traefik':
                 current_version = get_traefik_version(instance, url)
             elif app_name == 'OPNsense':
