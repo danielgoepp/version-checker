@@ -358,6 +358,12 @@ class VersionManager:
                 current_version = get_wyoming_piper_version(instance, url)
             elif app_name == 'Wyoming Whisper':
                 current_version = get_wyoming_whisper_version(instance, url)
+            elif app_name == 'Rhasspy' and instance == 'wyoming-openwakeword':
+                current_version = get_wyoming_openwakeword_version(instance, url)
+            elif app_name == 'Rhasspy' and instance == 'wyoming-piper':
+                current_version = get_wyoming_piper_version(instance, url)
+            elif app_name == 'Rhasspy' and instance == 'wyoming-whisper':
+                current_version = get_wyoming_whisper_version(instance, url)
         
         elif check_current == 'mqtt':
             if app_name == 'Zigbee2MQTT':
