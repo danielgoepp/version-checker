@@ -32,6 +32,7 @@ from checkers.grafana import get_grafana_version
 from checkers.mongodb import get_mongodb_latest_version
 from checkers.unifi_protect import get_unifi_protect_version, get_unifi_protect_latest_version
 from checkers.unifi_network import get_unifi_network_version, get_unifi_network_latest_version
+from checkers.unifi_os import get_unifi_os_nvr_latest_version
 from checkers.samba import get_samba_version, get_latest_samba_version
 from checkers.syncthing import check_syncthing_current_version
 from checkers.awx import check_awx_current_version
@@ -223,6 +224,9 @@ class VersionManager:
             # Special case for UniFi Network using RSS feed
             if app_name == 'UniFi Network':
                 latest_version = get_unifi_network_latest_version()
+        elif check_latest == 'unifi_os_nvr_rss':
+            # Special case for UniFi OS NVR/UNVR using RSS feed
+            latest_version = get_unifi_os_nvr_latest_version()
         # ssh_apt method - latest version will be populated during ssh current check
         
         return latest_version
