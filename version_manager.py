@@ -30,8 +30,8 @@ from checkers.traefik import get_traefik_version
 from checkers.graylog import get_graylog_current_version, get_graylog_latest_version_from_repo, get_postgresql_latest_version_from_ghcr
 from checkers.grafana import get_grafana_version
 from checkers.mongodb import get_mongodb_latest_version
-from checkers.unifi_protect import get_unifi_protect_version
-from checkers.unifi_network import get_unifi_network_version
+from checkers.unifi_protect import get_unifi_protect_version, get_unifi_protect_latest_version
+from checkers.unifi_network import get_unifi_network_version, get_unifi_network_latest_version
 from checkers.samba import get_samba_version, get_latest_samba_version
 from checkers.syncthing import check_syncthing_current_version
 from checkers.awx import check_awx_current_version
@@ -215,6 +215,14 @@ class VersionManager:
                 latest_version = self._get_dockerhub_version_for_app(app_name, dockerhub_repo)
         elif check_latest == 'proxmox':
             latest_version = get_proxmox_latest_version(include_ceph=True)
+        elif check_latest == 'unifi_protect_rss':
+            # Special case for UniFi Protect using RSS feed
+            if app_name == 'UniFi Protect':
+                latest_version = get_unifi_protect_latest_version()
+        elif check_latest == 'unifi_network_rss':
+            # Special case for UniFi Network using RSS feed
+            if app_name == 'UniFi Network':
+                latest_version = get_unifi_network_latest_version()
         # ssh_apt method - latest version will be populated during ssh current check
         
         return latest_version
