@@ -32,7 +32,7 @@ from checkers.grafana import get_grafana_version
 from checkers.mongodb import get_mongodb_latest_version
 from checkers.unifi_protect import get_unifi_protect_version, get_unifi_protect_latest_version
 from checkers.unifi_network import get_unifi_network_version, get_unifi_network_latest_version
-from checkers.unifi_os import get_unifi_os_nvr_latest_version
+from checkers.unifi_os import get_unifi_os_nvr_latest_version, get_unifi_os_version
 from checkers.samba import get_samba_version, get_latest_samba_version
 from checkers.syncthing import check_syncthing_current_version
 from checkers.awx import check_awx_current_version
@@ -322,6 +322,11 @@ class VersionManager:
                 if isinstance(kernel_result, dict):
                     current_version = kernel_result.get('current_version')
                     latest_version = kernel_result.get('latest_version')
+            else:
+                # SSH for current version only - handle specific applications
+                if app_name == 'UniFi OS':
+                    if url:
+                        current_version = get_unifi_os_version(instance, url)
         
         elif check_current == 'kubectl':
             if app_name == 'Telegraf':
@@ -414,11 +419,18 @@ class VersionManager:
         
         print(f"Checking {app_name} ({instance})...")
         
-        # Get latest version
-        latest_version = self.get_latest_version(app_name, check_latest, github_repo, dockerhub_repo)
-        
-        # Get current version (and possibly additional latest version from SSH methods)
-        current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
+        # Special handling for UniFi OS - get current first, then use it for smart latest version logic
+        if app_name == 'UniFi OS' and check_latest == 'unifi_os_nvr_rss':
+            # Get current version first
+            current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
+            # Then get latest version with current version context
+            latest_version = get_unifi_os_nvr_latest_version(current_version)
+        else:
+            # Standard flow: get latest version first
+            latest_version = self.get_latest_version(app_name, check_latest, github_repo, dockerhub_repo)
+            
+            # Get current version (and possibly additional latest version from SSH methods)
+            current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
         
         # For SSH-based methods, use the latest version from the SSH check if available
         if ssh_latest_version:

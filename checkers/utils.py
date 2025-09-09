@@ -1,6 +1,7 @@
 import requests
 import re
 import json
+import subprocess
 
 
 def http_get(url, auth=None, headers=None, timeout=10):
@@ -92,3 +93,60 @@ def parse_image_version(image_string, image_pattern, version_pattern=r"v?(\d+\.\
     full_pattern = rf"{image_pattern}:{version_pattern}"
     version_match = re.search(full_pattern, image_string)
     return version_match.group(1) if version_match else None
+
+
+def ssh_get_version(instance, hostname, command):
+    """Execute SSH command and return the output"""
+    try:
+        cmd = [
+            'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+            hostname, command
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        
+        if result.returncode == 0:
+            return result.stdout.strip()
+        else:
+            # Log stderr for debugging but don't treat as fatal error
+            if result.stderr.strip():
+                print(f"  {instance}: SSH command '{command}' stderr: {result.stderr.strip()}")
+            return None
+            
+    except subprocess.TimeoutExpired:
+        print_error(instance, f"SSH command timed out: {command}")
+        return None
+    except Exception as e:
+        print_error(instance, f"SSH command failed: {e}")
+        return None
+
+
+def ssh_get_login_message(instance, hostname):
+    """Connect via SSH and capture login message (MOTD) without running commands"""
+    try:
+        # Use 'true' command which does nothing but will trigger MOTD display
+        cmd = [
+            'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
+            hostname, 'true'
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        
+        # For login messages, we want to capture both stdout and stderr
+        # as MOTD can appear in either stream depending on the system
+        full_output = ""
+        if result.stdout.strip():
+            full_output += result.stdout.strip()
+        if result.stderr.strip():
+            if full_output:
+                full_output += "\n"
+            full_output += result.stderr.strip()
+        
+        return full_output if full_output else None
+            
+    except subprocess.TimeoutExpired:
+        print_error(instance, "SSH connection timed out")
+        return None
+    except Exception as e:
+        print_error(instance, f"SSH connection failed: {e}")
+        return None
