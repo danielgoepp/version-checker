@@ -150,3 +150,44 @@ def ssh_get_login_message(instance, hostname):
     except Exception as e:
         print_error(instance, f"SSH connection failed: {e}")
         return None
+
+
+def get_helm_chart_version(chart_repo, chart_name, value_path):
+    """Get version from Helm chart values.yaml file on GitHub
+    
+    Args:
+        chart_repo: GitHub repository (e.g., 'mongodb/helm-charts')
+        chart_name: Name of the chart (e.g., 'community-operator')
+        value_path: YAML path to the version (e.g., 'operator.version')
+    """
+    try:
+        # Construct URL to the values.yaml file
+        url = f"https://raw.githubusercontent.com/{chart_repo}/main/charts/{chart_name}/values.yaml"
+        
+        import yaml
+        
+        # Fetch the YAML content
+        response = http_get(url, timeout=10)
+        if not response:
+            return None
+        
+        # Parse YAML
+        try:
+            yaml_data = yaml.safe_load(response)
+        except yaml.YAMLError:
+            return None
+        
+        # Navigate to the version using dot notation
+        keys = value_path.split('.')
+        current = yaml_data
+        
+        for key in keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+        
+        return str(current) if current is not None else None
+        
+    except Exception:
+        return None

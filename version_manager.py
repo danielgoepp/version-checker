@@ -191,7 +191,8 @@ class VersionManager:
     
     def _get_github_version_for_app(self, app_name, github_repo, check_latest):
         """Helper method to get GitHub version for specific applications"""
-        if app_name == 'MongoDB':
+        if app_name == 'MongoDB' and github_repo == 'mongodb/mongo':
+            # Only use hardcoded MongoDB function for database instances
             return get_mongodb_latest_version()
         elif check_latest == 'github_release':
             return get_github_latest_version(github_repo)
@@ -227,6 +228,11 @@ class VersionManager:
         elif check_latest == 'unifi_os_nvr_rss':
             # Special case for UniFi OS NVR/UNVR using RSS feed
             latest_version = get_unifi_os_nvr_latest_version()
+        elif check_latest == 'helm_chart':
+            # Special case for MongoDB operator using Helm chart version
+            if app_name == 'MongoDB':
+                from checkers.utils import get_helm_chart_version
+                latest_version = get_helm_chart_version('mongodb/helm-charts', 'community-operator', 'operator.version')
         # ssh_apt method - latest version will be populated during ssh current check
         
         return latest_version

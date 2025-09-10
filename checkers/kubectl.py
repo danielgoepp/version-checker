@@ -118,17 +118,29 @@ def get_opensearch_version(instance):
 
 
 def get_mongodb_version(instance):
-    """Get MongoDB version from Kubernetes pod command"""
+    """Get MongoDB version from Kubernetes pod command or operator image for a specific instance"""
     checker = KubernetesChecker(instance, namespace="mongodb")
-    pod_name = checker.find_pod("mongodb-0")
     
-    if not pod_name:
-        return None
-    
-    output = checker.exec_pod_command(pod_name, "mongod --version", container="mongod")
-    if output:
-        # Parse "db version v6.0.8" format
-        return checker.get_version_from_command_output(output, r"db version v(\d+\.\d+\.\d+)")
+    # Configure instance-specific parameters
+    if instance == "operator":
+        pod_pattern = "mongodb-kubernetes-operator"
+        # For operator, get version from image
+        image_checker = ImageVersionChecker(instance, namespace="mongodb")
+        pod_name = image_checker.find_pod(pod_pattern)
+        if pod_name:
+            description = image_checker.describe_resource("pod", pod_name)
+            return image_checker.get_image_version_from_description(description, "mongodb-kubernetes-operator")
+    else:
+        # For database instances, use the existing logic
+        pod_name = checker.find_pod("mongodb-0")
+        
+        if not pod_name:
+            return None
+        
+        output = checker.exec_pod_command(pod_name, "mongod --version", container="mongod")
+        if output:
+            # Parse "db version v6.0.8" format
+            return checker.get_version_from_command_output(output, r"db version v(\d+\.\d+\.\d+)")
 
 
 def get_victoriametrics_version(instance):
