@@ -191,3 +191,35 @@ def get_helm_chart_version(chart_repo, chart_name, value_path):
         
     except Exception:
         return None
+
+
+def get_helm_chart_app_version(chart_repo, chart_name):
+    """Get appVersion from Helm chart Chart.yaml file on GitHub
+    
+    Args:
+        chart_repo: GitHub repository (e.g., 'fluent/helm-charts')
+        chart_name: Name of the chart (e.g., 'fluent-bit')
+    """
+    try:
+        # Construct URL to the Chart.yaml file
+        url = f"https://raw.githubusercontent.com/{chart_repo}/main/charts/{chart_name}/Chart.yaml"
+        
+        import yaml
+        
+        # Fetch the YAML content
+        response = http_get(url, timeout=10)
+        if not response:
+            return None
+        
+        # Parse YAML
+        try:
+            yaml_data = yaml.safe_load(response)
+        except yaml.YAMLError:
+            return None
+        
+        # Get appVersion from Chart.yaml
+        app_version = yaml_data.get('appVersion')
+        return str(app_version) if app_version is not None else None
+        
+    except Exception:
+        return None

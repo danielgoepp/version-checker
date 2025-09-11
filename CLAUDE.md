@@ -180,6 +180,7 @@ The system uses two separate columns for version checking:
 - **Explicit behavior**: Makes debugging easier and keeps code focused on the intended approach
 
 ### Excel Structure Preservation
+- **Worksheet Name**: ALWAYS use "Sheet1" as the worksheet name - never assume "Applications" or other names
 - **Column Structure**: Name, Instance, Type, Category, Target, GitHub, DockerHub, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
 - **Target Column**: Store complete URLs with protocols in Excel
 - **GitHub Column**: Store GitHub repository paths (owner/repo format)

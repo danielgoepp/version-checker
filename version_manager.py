@@ -233,6 +233,10 @@ class VersionManager:
             if app_name == 'MongoDB':
                 from src.checkers.utils import get_helm_chart_version
                 latest_version = get_helm_chart_version('mongodb/helm-charts', 'community-operator', 'operator.version')
+            # Special case for Fluent Bit using Helm chart appVersion
+            elif app_name == 'Fluent Bit':
+                from src.checkers.utils import get_helm_chart_app_version
+                latest_version = get_helm_chart_app_version('fluent/helm-charts', 'fluent-bit')
         # ssh_apt method - latest version will be populated during ssh current check
         
         return latest_version
