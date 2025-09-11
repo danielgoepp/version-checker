@@ -7,8 +7,12 @@ def get_graylog_current_version(instance, url):
     """Get current Graylog version using /api/cluster endpoint"""
     # Setup authentication
     auth = None
-    if hasattr(config, 'GRAYLOG_TOKENS') and instance in config.GRAYLOG_TOKENS:
-        auth = (config.GRAYLOG_TOKENS[instance], 'token')
+    
+    # Map instance name to config key
+    token_key = f"graylog-{instance}" if instance != "graylog-prod" else instance
+    
+    if hasattr(config, 'GRAYLOG_TOKENS') and token_key in config.GRAYLOG_TOKENS:
+        auth = (config.GRAYLOG_TOKENS[token_key], 'token')
     elif hasattr(config, 'GRAYLOG_USERNAME') and hasattr(config, 'GRAYLOG_PASSWORD'):
         auth = (config.GRAYLOG_USERNAME, config.GRAYLOG_PASSWORD)
     

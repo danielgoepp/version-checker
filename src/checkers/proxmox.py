@@ -135,7 +135,7 @@ def load_compatibility_matrix():
     Returns:
         dict: Compatibility matrix or empty dict if not available
     """
-    cache_file = Path(__file__).parent.parent / "proxmox_ceph_compatibility.json"
+    cache_file = Path(__file__).parent.parent.parent / "proxmox_ceph_compatibility.json"
     
     if cache_file.exists():
         try:
