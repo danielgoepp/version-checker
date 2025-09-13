@@ -212,17 +212,16 @@ def get_certmanager_version(instance):
 
 
 def get_postfix_version(instance):
-    """Get Postfix version from Kubernetes pod"""
-    checker = KubernetesChecker(instance, namespace="postfix")
-    pod_name = checker.find_pod("postfix")
+    """Get Postfix Docker image version from Kubernetes deployment"""
+    checker = ImageVersionChecker(instance, namespace="postfix")
     
-    if not pod_name:
+    # Get the deployment description
+    description = checker.describe_resource("deployment", "postfix")
+    if not description:
         return None
     
-    output = checker.exec_pod_command(pod_name, "postconf mail_version")
-    if output:
-        # Parse "mail_version = 3.7.11" format
-        return checker.get_version_from_command_output(output, r"mail_version = (\d+\.\d+\.\d+)")
+    # Use standard semantic version pattern for Docker tags
+    return checker.get_image_version_from_description(description, "boky/postfix", r"(\d+\.\d+\.\d+)")
 
 
 def get_hertzbeat_kubectl_version(instance):
