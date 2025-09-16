@@ -11,6 +11,7 @@ from src.checkers.github import get_github_latest_version, get_github_latest_tag
 from src.checkers.home_assistant import get_home_assistant_version
 from src.checkers.esphome import get_esphome_version
 from src.checkers.konnected import get_konnected_version, get_konnected_current_version
+from src.checkers.airgradient import get_airgradient_version, get_airgradient_current_version
 from src.checkers.opnsense import get_opnsense_version
 from src.checkers.k3s import get_k3s_current_version
 from src.checkers.zigbee2mqtt import get_zigbee2mqtt_version
@@ -61,9 +62,9 @@ class VersionManager:
     
     # Expected column names (order-independent)
     EXPECTED_COLUMNS = [
-        'Name', 'Instance', 'Type', 'Category', 'Target', 
-        'GitHub', 'DockerHub', 'Current_Version', 'Latest_Version', 
-        'Status', 'Last_Checked', 'Check_Current', 'Check_Latest'
+        'Name', 'Instance', 'Type', 'Category', 'Target',
+        'GitHub', 'DockerHub', 'Current_Version', 'Latest_Version',
+        'Status', 'Last_Checked', 'Check_Current', 'Check_Latest', 'Key'
     ]
     
     def __init__(self, excel_path=None):
@@ -265,6 +266,10 @@ class VersionManager:
             elif app_name == 'Konnected':
                 # Check device API for current version
                 current_version = get_konnected_current_version(instance, url)
+            elif app_name == 'AirGradient':
+                # Check device API for current version with encryption key
+                encryption_key = app_data.get('Key', '')
+                current_version = get_airgradient_current_version(instance, url, encryption_key)
             elif app_name == 'Traefik':
                 current_version = get_traefik_version(instance, url)
             elif app_name == 'OPNsense':
