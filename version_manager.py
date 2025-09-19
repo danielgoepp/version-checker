@@ -434,16 +434,21 @@ class VersionManager:
         
         print(f"Checking {app_name} ({instance})...")
         
-        # Special handling for UniFi OS - get current first, then use it for smart latest version logic
+        # Special handling for apps that need current version for smart latest version logic
         if app_name == 'UniFi OS' and check_latest == 'unifi_os_nvr_rss':
             # Get current version first
             current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
             # Then get latest version with current version context
             latest_version = get_unifi_os_nvr_latest_version(current_version)
+        elif check_latest == 'proxmox':
+            # Get current version first for Proxmox to enable smart version comparison
+            current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
+            # Then get latest version with current version context
+            latest_version = get_proxmox_latest_version(include_ceph=True, current_version=current_version)
         else:
             # Standard flow: get latest version first
             latest_version = self.get_latest_version(app_name, check_latest, github_repo, dockerhub_repo)
-            
+
             # Get current version (and possibly additional latest version from SSH methods)
             current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
         

@@ -179,45 +179,99 @@ def get_ceph_latest_version_for_proxmox(proxmox_version):
     return proxmox_ceph_compatibility.get(version_key)
 
 
-def get_proxmox_latest_version(include_ceph=False):
+def compare_proxmox_versions(current_version, latest_version):
+    """
+    Compare Proxmox versions properly handling patch releases
+
+    Args:
+        current_version: Current version string (e.g., "9.0.10")
+        latest_version: Latest version string (e.g., "9.0")
+
+    Returns:
+        int: -1 if current < latest, 0 if equal, 1 if current > latest
+    """
+    if not current_version or not latest_version:
+        return 0
+
+    import re
+
+    # Extract version numbers
+    current_match = re.match(r'(\d+)\.(\d+)(?:\.(\d+))?', current_version)
+    latest_match = re.match(r'(\d+)\.(\d+)(?:\.(\d+))?', latest_version)
+
+    if not current_match or not latest_match:
+        return 0
+
+    # Parse version components
+    current_major = int(current_match.group(1))
+    current_minor = int(current_match.group(2))
+    current_patch = int(current_match.group(3) or 0)
+
+    latest_major = int(latest_match.group(1))
+    latest_minor = int(latest_match.group(2))
+    latest_patch = int(latest_match.group(3) or 0)
+
+    # Compare versions
+    if current_major != latest_major:
+        return -1 if current_major < latest_major else 1
+    if current_minor != latest_minor:
+        return -1 if current_minor < latest_minor else 1
+    if current_patch != latest_patch:
+        return -1 if current_patch < latest_patch else 1
+
+    return 0
+
+def get_proxmox_latest_version(include_ceph=False, current_version=None):
     """
     Get latest Proxmox VE version from endoflife.date API, optionally with Ceph
-    
+
     Args:
         include_ceph: Whether to include Ceph latest version
-    
+        current_version: Current version for intelligent comparison
+
     Returns:
         str: Latest version string (possibly combined with Ceph) or None
     """
     try:
         # Use endoflife.date API for Proxmox VE version information
         api_url = "https://endoflife.date/api/proxmox-ve.json"
-        
+
         response = requests.get(api_url, timeout=10)
-        
+
         if response.status_code == 200:
             versions = response.json()
-            
+
             # The API returns an array of version objects, sorted with latest first
             if versions and len(versions) > 0:
                 latest = versions[0]
-                
+
                 # Use the 'latest' field which has more detailed version info like "9.0"
                 proxmox_latest = latest.get('latest') or latest.get('cycle')
-                
+
+                if proxmox_latest and current_version:
+                    # If current version is a patch release of the same major.minor,
+                    # use the current version as the latest to avoid false update notifications
+                    comparison = compare_proxmox_versions(current_version.split()[0], proxmox_latest)
+                    if comparison >= 0:  # Current is same or newer
+                        # Extract just the version part from current_version
+                        import re
+                        match = re.match(r'(\d+\.\d+(?:\.\d+)?)', current_version)
+                        if match:
+                            proxmox_latest = match.group(1)
+
                 if proxmox_latest:
                     if include_ceph:
                         # Get latest supported Ceph version for this Proxmox version
                         ceph_latest = get_ceph_latest_version_for_proxmox(proxmox_latest)
                         if ceph_latest:
                             return f"{proxmox_latest} (Ceph {ceph_latest})"
-                    
+
                     return proxmox_latest
-            
+
         else:
             print(f"  Failed to get latest Proxmox version: HTTP {response.status_code}")
             return None
-            
+
     except requests.exceptions.ConnectTimeout:
         print(f"  Connection timeout getting latest Proxmox version")
         return None
