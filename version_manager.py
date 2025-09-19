@@ -281,7 +281,7 @@ class VersionManager:
                     # Use the full_version as the latest version for OPNsense
                     if result.get('full_version'):
                         latest_version = result['full_version']
-            elif app_name == 'Proxmox VE':
+            elif app_name == 'Proxmox':
                 if url:
                     current_version = get_proxmox_version(instance, url)
             elif app_name == 'Tailscale':

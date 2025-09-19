@@ -75,7 +75,7 @@ def get_proxmox_version(instance, url):
         }
         
         # Make the API call with authentication
-        response = requests.get(api_url, headers=headers, timeout=10)
+        response = requests.get(api_url, headers=headers, timeout=10, verify=False)
         
         if response.status_code == 200:
             data = response.json()
