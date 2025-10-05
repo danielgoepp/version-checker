@@ -23,7 +23,7 @@ from src.checkers.kubectl import (
     get_pgadmin_version, get_unpoller_version, get_certmanager_version, 
     get_postfix_version, get_hertzbeat_kubectl_version, get_minio_kubectl_version
 )
-from src.checkers.postgres import get_cnpg_operator_version, get_postgres_version
+from src.checkers.cnpg import get_cnpg_version, get_cnpg_postgres_latest_version
 from src.checkers.server_status import check_server_status
 from src.checkers.proxmox import get_proxmox_version, get_proxmox_latest_version
 from src.checkers.tailscale import check_tailscale_versions
@@ -215,7 +215,11 @@ class VersionManager:
                     latest_version = self._get_github_version_for_app(app_name, github_repo, check_latest)
         elif check_latest == 'docker_hub':
             if dockerhub_repo and dockerhub_repo.strip():
-                latest_version = self._get_dockerhub_version_for_app(app_name, dockerhub_repo)
+                # Special case for CNPG PostgreSQL - use catalog instead of docker hub
+                if app_name == 'cnpg' and 'postgres-containers' in dockerhub_repo:
+                    latest_version = get_cnpg_postgres_latest_version()
+                else:
+                    latest_version = self._get_dockerhub_version_for_app(app_name, dockerhub_repo)
         elif check_latest == 'proxmox':
             latest_version = get_proxmox_latest_version(include_ceph=True)
         elif check_latest == 'unifi_protect_rss':
@@ -362,10 +366,8 @@ class VersionManager:
                 current_version = get_mongodb_version(instance)
             elif app_name == 'OpenSearch':
                 current_version = get_opensearch_version(instance)
-            elif app_name == 'CloudNativePG':
-                current_version = get_cnpg_operator_version(instance)
-            elif app_name == 'PostgreSQL':
-                current_version = get_postgres_version(instance)
+            elif app_name == 'cnpg':
+                current_version = get_cnpg_version(instance)
             elif app_name == 'pgAdmin':
                 current_version = get_pgadmin_version(instance)
             elif app_name == 'Grafana':

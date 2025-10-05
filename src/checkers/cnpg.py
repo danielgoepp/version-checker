@@ -1,7 +1,71 @@
 import subprocess
 import re
+import yaml
+from .utils import http_get
 
-def get_cnpg_operator_version(instance):
+def get_cnpg_version(instance):
+    """
+    Unified CNPG version checker for both operator and PostgreSQL cluster instances.
+
+    - operator: Checks CNPG operator deployment version
+    - PostgreSQL instances: Checks PostgreSQL version in CNPG cluster pods
+    """
+    if instance == 'operator':
+        return _get_cnpg_operator_version(instance)
+    else:
+        return _get_postgres_cluster_version(instance)
+
+
+def get_cnpg_postgres_latest_version():
+    """Get latest PostgreSQL version from CNPG artifacts catalog for Debian Trixie"""
+    try:
+        # Fetch the catalog YAML from cloudnative-pg/artifacts repository
+        url = "https://raw.githubusercontent.com/cloudnative-pg/artifacts/main/image-catalogs/catalog-standard-trixie.yaml"
+
+        response = http_get(url, timeout=10)
+        if not response:
+            print("  Error fetching CNPG catalog")
+            return None
+
+        # Parse YAML
+        try:
+            catalog_data = yaml.safe_load(response)
+        except yaml.YAMLError as e:
+            print(f"  Error parsing CNPG catalog YAML: {e}")
+            return None
+
+        # Extract latest PostgreSQL version
+        # The catalog structure has images in spec.images with image URLs
+        # Example: ghcr.io/cloudnative-pg/postgresql:18.0-202509290807-standard-trixie@sha256:...
+        versions = []
+
+        if isinstance(catalog_data, dict) and 'spec' in catalog_data:
+            spec = catalog_data['spec']
+            if isinstance(spec, dict) and 'images' in spec:
+                for image_entry in spec['images']:
+                    if isinstance(image_entry, dict) and 'image' in image_entry:
+                        image_url = image_entry['image']
+                        # Extract version from image URL like "postgresql:18.0-..."
+                        version_match = re.search(r'postgresql:(\d+\.\d+)-', str(image_url))
+                        if version_match:
+                            versions.append(version_match.group(1))
+
+        if versions:
+            # Sort versions and return the latest
+            # Convert to tuples for proper numeric sorting
+            version_tuples = [tuple(map(int, v.split('.'))) for v in versions]
+            latest_tuple = max(version_tuples)
+            latest_version = '.'.join(map(str, latest_tuple))
+            return latest_version
+
+        return None
+
+    except Exception as e:
+        print(f"  Error getting CNPG latest version: {e}")
+        return None
+
+
+def _get_cnpg_operator_version(instance):
     """Get CloudNativePG operator version from Kubernetes deployment"""
     try:
         # Get CNPG operator deployment image version
@@ -33,7 +97,7 @@ def get_cnpg_operator_version(instance):
         return None
 
 
-def get_postgres_version(instance):
+def _get_postgres_cluster_version(instance):
     """Get PostgreSQL version from CNPG cluster instances"""
     try:
         # Map instance names to namespaces and pod patterns based on full instance names
