@@ -1,4 +1,6 @@
 import requests
+import urllib3
+import warnings
 from .utils import http_get, print_error
 
 
@@ -16,8 +18,11 @@ def get_portainer_version(instance, url):
     try:
         # Portainer /api/status endpoint doesn't require authentication
         status_url = f"{url}/api/status"
-        
-        response = requests.get(status_url, timeout=10, verify=False)
+
+        # Suppress SSL warning for this specific server
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', urllib3.exceptions.InsecureRequestWarning)
+            response = requests.get(status_url, timeout=10, verify=False)
         response.raise_for_status()
         
         data = response.json()

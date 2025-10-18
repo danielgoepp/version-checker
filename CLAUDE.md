@@ -12,7 +12,7 @@ Note: This is for my specific infrastructure only, not a general purpose app. Th
 - **Excel Handling**: **EXCLUSIVELY uses openpyxl** for all Excel operations to preserve formatting (no pandas)
 - **Modular Design**: Individual checkers in `checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
-- **Virtual Environment**: Always use `source venv/bin/activate`
+- **Virtual Environment**: Always use `source .venv/bin/activate`
 - **Unified Kernel Checking**: Single linux_kernel.py handles all Linux distributions
 
 ## Key Patterns
@@ -211,7 +211,7 @@ The system uses two separate columns for version checking:
 - **Virtual Environment**: Recreate with new Python versions for optimal compatibility
 - **SSL/TLS**: Uses system OpenSSL with urllib3 v2.5.0+ for secure HTTPS requests
 - **Code Organization**: Modular architecture with optimized checker modules (unified linux_kernel.py reduced complexity)
-- **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use openpyxl with virtual environment to preserve formatting: `source venv/bin/activate && python3 -c "from openpyxl import load_workbook; wb = load_workbook('filename'); ws = wb['Sheet1']"` 
+- **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use openpyxl with virtual environment to preserve formatting: `source .venv/bin/activate && python3 -c "from openpyxl import load_workbook; wb = load_workbook('filename'); ws = wb['Sheet1']"` 
 - **Excel File Location**: Use EXCEL_FILE_PATH from config.py (set in .env file) to know where the Excel file is located, don't assume it's in current directory
 
 ## Critical Excel Handling Rules

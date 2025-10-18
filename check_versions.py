@@ -1,4 +1,4 @@
-#!/Users/dang/Documents/Development/version-checker/venv/bin/python
+#!/Users/dang/Documents/Development/version-checker/.venv/bin/python
 
 import argparse
 import sys

@@ -18,8 +18,8 @@ A comprehensive Python-based system for tracking software versions across your i
 
 1. Create and activate virtual environment:
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 # Or use the helper script:
 # source activate.sh
 ```
@@ -140,12 +140,12 @@ Applications that run across multiple environments are tracked separately by ins
   - **`kubectl.py`** - Kubernetes-based version checkers using modular base classes
   - **`utils.py`** - Shared utilities (HTTP requests, version parsing, error handling)
   - Additional specialized checkers for specific application types and platforms
-- **`venv/`** - Virtual environment (not committed to git)
+- **`.venv/`** - Virtual environment (not committed to git)
 
 ## Quick Start Example:
 ```bash
 # Activate virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 
 # Check all applications (including all Kopia instances)
 ./check_versions.py --check-all
