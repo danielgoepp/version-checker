@@ -12,7 +12,7 @@ from config import EXCEL_FILE_PATH
 
 def main():
     parser = argparse.ArgumentParser(description='Goepp Homelab Version Manager')
-    parser.add_argument('--excel', default=EXCEL_FILE_PATH, 
+    parser.add_argument('--excel', default=EXCEL_FILE_PATH,
                        help=f'Path to Excel file (default: {EXCEL_FILE_PATH})')
     parser.add_argument('--check-all', action='store_true',
                        help='Check all applications and exit')
@@ -22,7 +22,9 @@ def main():
                        help='List all applications and exit')
     parser.add_argument('--app', type=str,
                        help='Check specific application by name')
-    
+    parser.add_argument('--workers', type=int, default=10,
+                       help='Maximum concurrent workers for --check-all (default: 10)')
+
     args = parser.parse_args()
     
     vm = VersionManager(args.excel)
@@ -32,7 +34,7 @@ def main():
         sys.exit(1)
     
     if args.check_all:
-        vm.check_all_applications()
+        vm.check_all_applications(max_workers=args.workers)
     elif args.summary:
         vm.show_summary()
     elif args.list:

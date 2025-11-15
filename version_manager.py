@@ -4,6 +4,8 @@ from datetime import datetime
 import re
 import urllib3
 from openpyxl import load_workbook
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
 # Import all version checkers
@@ -72,6 +74,7 @@ class VersionManager:
         self.workbook = None
         self.worksheet = None
         self.columns = {}  # Dynamic column mapping
+        self._lock = threading.Lock()  # Thread-safe Excel updates
         self.load_workbook()
     
     def load_workbook(self):
@@ -146,14 +149,15 @@ class VersionManager:
         return data
     
     def update_row_data(self, row_num, updates):
-        """Update specific columns in a row"""
+        """Update specific columns in a row (thread-safe)"""
         if self.worksheet is None:
             return
-        
-        for col_name, value in updates.items():
-            if col_name in self.columns:
-                col_letter = self.columns[col_name]
-                self.worksheet[f'{col_letter}{row_num}'] = value
+
+        with self._lock:
+            for col_name, value in updates.items():
+                if col_name in self.columns:
+                    col_letter = self.columns[col_name]
+                    self.worksheet[f'{col_letter}{row_num}'] = value
     
     def find_application_row(self, app_name, instance='prod'):
         """Find the row number for a specific application and instance"""
@@ -528,20 +532,46 @@ class VersionManager:
         print(f"  Status: {icon} {status}")
         print()
     
-    def check_all_applications(self):
-        """Check versions for all applications"""
+    def check_all_applications(self, max_workers=10):
+        """Check versions for all applications concurrently
+
+        Args:
+            max_workers: Maximum number of concurrent threads (default: 10)
+        """
         if self.worksheet is None:
             print("No worksheet loaded")
             return
-            
-        print("Starting version check for all applications...")
+
+        print(f"Starting concurrent version check for all applications (max {max_workers} workers)...")
         print("=" * 50)
-        
-        for row_num in range(2, self.worksheet.max_row + 1):
-            self.check_single_application(row_num)
-        
+
+        # Collect all row numbers to check
+        row_nums = list(range(2, self.worksheet.max_row + 1))
+        total_apps = len(row_nums)
+        completed = 0
+
+        # Use ThreadPoolExecutor for concurrent checking
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_row = {
+                executor.submit(self.check_single_application, row_num): row_num
+                for row_num in row_nums
+            }
+
+            # Process completed tasks as they finish
+            for future in as_completed(future_to_row):
+                row_num = future_to_row[future]
+                completed += 1
+                try:
+                    future.result()  # Raise any exceptions that occurred
+                    if completed % 5 == 0 or completed == total_apps:
+                        print(f"Progress: {completed}/{total_apps} applications checked")
+                except Exception as e:
+                    print(f"Error checking row {row_num}: {e}")
+
         self.save_workbook()
-        print("Version check completed!")
+        print("=" * 50)
+        print(f"Version check completed! Checked {total_apps} applications concurrently.")
     
     def show_summary(self):
         """Display a summary of version status"""
