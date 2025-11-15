@@ -7,12 +7,18 @@ A comprehensive Python-based system for tracking software versions across your i
 - **Excel Integration**: Uses Excel database with Name/Instance structure for data management
 - **Multi-Instance Support**: Track multiple instances of the same application across environments
 - **Modular Architecture**: Base classes (KubernetesChecker, APIChecker) for efficient code reuse
-- **Dual Check Method Architecture**: 
+- **Dual Check Method Architecture**:
   - **Current Version**: API calls, SSH connections, Kubernetes queries, MQTT subscriptions
   - **Latest Version**: GitHub releases/tags, Docker Hub, custom APIs, platform updates
 - **Visual Status Indicators**: Emoji icons for quick status recognition (✅⚠️📋❓)
 - **Automated Tracking**: Tracks current vs latest versions with timestamps
 - **Flexible Interface**: Command-line and interactive modes
+- **Performance Optimizations**:
+  - API caching for GitHub and Docker Hub requests (~383,000x speedup on repeated calls)
+  - Concurrent version checking using ThreadPoolExecutor
+  - Efficient kubectl JSON parsing instead of shell pipes
+- **Security Hardening**: No shell=True in subprocess calls - all commands use list-based construction
+- **Selective Checking**: Enable/disable column to skip applications without removing from database
 
 ## Setup
 
@@ -70,18 +76,20 @@ Run `./check_versions.py` without arguments for menu-driven interface:
 The Excel file uses a single sheet with the following columns:
 
 - **Name**: Application name (Home Assistant, Kopia, etc.)
+- **Enabled**: Boolean field to enable/disable checking (skips disabled apps for efficiency)
 - **Instance**: Specific instance (ssd, hdd, b2, prod, etc.)
 - **Type**: Application type/category
 - **Category**: Infrastructure category (set automatically for servers)
 - **Target**: Connection endpoint (URLs, hostnames, etc.)
-- **Repository**: Repository path for latest version checks (GitHub, Docker Hub, etc.)
+- **GitHub**: GitHub repository path (owner/repo format)
+- **DockerHub**: Docker Hub repository path (org/image format)
 - **Current_Version**: Currently running version
 - **Latest_Version**: Latest available version
 - **Status**: Up to Date, Update Available, etc.
 - **Last_Checked**: Timestamp of last check
 - **Check_Current**: How current versions are retrieved (api, ssh, kubectl, etc.)
 - **Check_Latest**: How latest versions are retrieved (github_release, docker_hub, etc.)
-- **Notes**: Additional information (auto-populated for some checks)
+- **Key**: Unique identifier for each application instance
 
 ## Supported Check Methods
 
@@ -127,17 +135,19 @@ Applications that run across multiple environments are tracked separately by ins
 - Follows your established authentication patterns (Bearer tokens, API keys, etc.)
 
 
-## Files in Project:
+## Files in Project
+
 - **`Goepp Homelab Master.xlsx`** - Excel database with Name/Instance structure for tracking
-- **`version_manager.py`** - Core Python class handling all version checking logic
+- **`version_manager.py`** - Core Python class handling all version checking logic with concurrent execution
 - **`check_versions.py`** - Command-line interface with multi-instance support
 - **`update_excel.py`** - Script to update Excel structure while preserving data
-- **`requirements.txt`** - Python dependencies
+- **`requirements.txt`** - Python dependencies (openpyxl, requests, paho-mqtt, PyYAML)
 - **`config.py`** - Configuration and credentials (not committed to git)
-- **`checkers/`** - Directory containing modular version checker modules
-  - **`base.py`** - Base classes (KubernetesChecker, APIChecker) for modular version checking
-  - **`github.py`** - GitHub release and tag API functions
-  - **`kubectl.py`** - Kubernetes-based version checkers using modular base classes
+- **`src/checkers/`** - Directory containing modular version checker modules
+  - **`base.py`** - Base classes (KubernetesChecker, APIChecker) with secure subprocess handling
+  - **`github.py`** - GitHub release and tag API functions with LRU caching
+  - **`dockerhub.py`** - Docker Hub version checking with LRU caching
+  - **`kubectl.py`** - Kubernetes-based version checkers using JSON output parsing
   - **`utils.py`** - Shared utilities (HTTP requests, version parsing, error handling)
   - Additional specialized checkers for specific application types and platforms
 - **`.venv/`** - Virtual environment (not committed to git)

@@ -7,13 +7,16 @@ Excel-based software version monitoring system with multi-instance support for t
 Note: This is for my specific infrastructure only, not a general purpose app. The only reason I make this a public repository is for reference only. If one were to take this code an try to make it work for them, significant changes would be needed to customize it. Unless of course you run the exact tech stack in the extact same way I do. If you are interested and want a copy of the Excel doc that goes with this, let me know and I would be happy to provide it.
 
 ## Architecture
-- **Language**: Python 3.13.7 with openpyxl, requests, paho-mqtt libraries
+- **Language**: Python 3.13.7 with openpyxl, requests, paho-mqtt, PyYAML libraries
 - **Excel Database**: "Goepp Homelab Master.xlsx" with Name/Instance structure and GitHub/DockerHub repository fields
 - **Excel Handling**: **EXCLUSIVELY uses openpyxl** for all Excel operations to preserve formatting (no pandas)
 - **Modular Design**: Individual checkers in `checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
 - **Virtual Environment**: Always use `source .venv/bin/activate`
 - **Unified Kernel Checking**: Single linux_kernel.py handles all Linux distributions
+- **API Caching**: LRU caching on GitHub and Docker Hub API calls for ~383,000x speedup on repeated calls
+- **Security**: No shell=True in subprocess calls - all commands use list-based construction to prevent command injection
+- **Concurrent Execution**: ThreadPoolExecutor for parallel version checking with thread-safe Excel updates
 
 ## Key Patterns
 
@@ -181,18 +184,22 @@ The system uses two separate columns for version checking:
 
 ### Excel Structure Preservation
 - **Worksheet Name**: ALWAYS use "Sheet1" as the worksheet name - never assume "Applications" or other names
-- **Column Structure**: Name, Instance, Type, Category, Target, GitHub, DockerHub, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest
+- **Column Structure**: Name, Enabled, Instance, Type, Category, Target, GitHub, DockerHub, Current_Version, Latest_Version, Status, Last_Checked, Check_Current, Check_Latest, Key
+- **Enabled Column**: Boolean field to enable/disable applications from checks (skips disabled apps)
 - **Target Column**: Store complete URLs with protocols in Excel
 - **GitHub Column**: Store GitHub repository paths (owner/repo format)
 - **DockerHub Column**: Store Docker Hub repository paths (org/image format)
 - **Name/Instance Pattern**: Maintain consistent naming structure
 - **Check Methods**: Use `Check_Current` for version retrieval method, `Check_Latest` for latest version source
+- **Key Column**: Unique identifier for each application instance (e.g., "home_assistant-prod")
 
 ### Error Handling
 - Print descriptive error messages with instance context
 - Return None for failed version checks
 - Use try/except with specific error types where possible
 - Set reasonable timeouts (10-15 seconds)
+- All subprocess calls use list-based command construction (never shell=True)
+- Thread-safe Excel updates using threading.Lock() for concurrent operations
 
 ## Security Considerations
 - **No hardcoded credentials** in version checking logic
@@ -208,11 +215,15 @@ The system uses two separate columns for version checking:
 
 ## Technical Notes
 - **Python Version**: Requires Python 3.13.7+ for clean operation (no urllib3 warnings)
-- **Virtual Environment**: Recreate with new Python versions for optimal compatibility
+- **Virtual Environment**: Recreate with new Python versions for optimal compatibility (~50MB smaller without pandas)
 - **SSL/TLS**: Uses system OpenSSL with urllib3 v2.5.0+ for secure HTTPS requests
 - **Code Organization**: Modular architecture with optimized checker modules (unified linux_kernel.py reduced complexity)
-- **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use openpyxl with virtual environment to preserve formatting: `source .venv/bin/activate && python3 -c "from openpyxl import load_workbook; wb = load_workbook('filename'); ws = wb['Sheet1']"` 
+- **Excel File Access**: NEVER try to read .xlsx files directly with Read tool - they are binary files. Always use openpyxl with virtual environment to preserve formatting: `source .venv/bin/activate && python3 -c "from openpyxl import load_workbook; wb = load_workbook('filename'); ws = wb['Sheet1']"`
 - **Excel File Location**: Use EXCEL_FILE_PATH from config.py (set in .env file) to know where the Excel file is located, don't assume it's in current directory
+- **API Efficiency**: GitHub and Docker Hub API calls are cached using @lru_cache for massive performance improvement on multi-instance apps
+- **Security**: All subprocess calls use list-based command construction to prevent command injection vulnerabilities
+- **Concurrency**: ThreadPoolExecutor enables parallel version checking with thread-safe Excel updates via threading.Lock()
+- **Kubernetes Integration**: Uses kubectl JSON output parsing instead of shell pipes for better performance and security
 
 ## Critical Excel Handling Rules
 - **NEVER use pandas**: The system exclusively uses openpyxl to preserve Excel formatting
