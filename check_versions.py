@@ -40,26 +40,16 @@ def main():
     elif args.list:
         vm.show_applications()
     elif args.app:
-        # Find application by name using openpyxl
-        if 'Name' not in vm.columns:
-            print("Error: 'Name' column not found in Excel file")
-            sys.exit(1)
-            
-        matching_rows = []
-        for row_num in range(2, vm.worksheet.max_row + 1):
-            name_cell = vm.worksheet[f"{vm.columns['Name']}{row_num}"]
-            if name_cell.value and name_cell.value.lower() == args.app.lower():
-                matching_rows.append(row_num)
-        
+        # Find application by name using VersionManager methods
+        matching_rows = vm.find_application_rows_by_name(args.app)
+
         if not matching_rows:
             print(f"Application '{args.app}' not found")
             print("Available applications:")
-            for row_num in range(2, vm.worksheet.max_row + 1):
-                name_cell = vm.worksheet[f"{vm.columns['Name']}{row_num}"]
-                if name_cell.value:
-                    print(f"  {name_cell.value}")
+            for name in vm.get_all_application_names():
+                print(f"  {name}")
             sys.exit(1)
-        
+
         # Check all matching instances
         for row_num in matching_rows:
             vm.check_single_application(row_num)

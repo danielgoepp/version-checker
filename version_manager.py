@@ -163,15 +163,52 @@ class VersionManager:
         """Find the row number for a specific application and instance"""
         if self.worksheet is None or 'Name' not in self.columns or 'Instance' not in self.columns:
             return None
-        
+
         for row_num in range(2, self.worksheet.max_row + 1):
             name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
             instance_cell = self.worksheet[f"{self.columns['Instance']}{row_num}"]
-            
+
             if (name_cell.value and name_cell.value.lower() == app_name.lower() and
                 instance_cell.value and instance_cell.value.lower() == instance.lower()):
                 return row_num
         return None
+
+    def find_application_rows_by_name(self, app_name):
+        """Find all row numbers for a specific application name (all instances)
+
+        Args:
+            app_name: Application name to search for (case-insensitive)
+
+        Returns:
+            List of row numbers matching the application name
+        """
+        if self.worksheet is None or 'Name' not in self.columns:
+            return []
+
+        matching_rows = []
+        for row_num in range(2, self.worksheet.max_row + 1):
+            name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
+            if name_cell.value and name_cell.value.lower() == app_name.lower():
+                matching_rows.append(row_num)
+
+        return matching_rows
+
+    def get_all_application_names(self):
+        """Get a sorted list of unique application names
+
+        Returns:
+            Sorted list of unique application names
+        """
+        if self.worksheet is None or 'Name' not in self.columns:
+            return []
+
+        names = set()
+        for row_num in range(2, self.worksheet.max_row + 1):
+            name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
+            if name_cell.value:
+                names.add(name_cell.value)
+
+        return sorted(names)
     
     def _get_dockerhub_version_for_app(self, app_name, dockerhub_repo):
         """Helper method to get Docker Hub version for specific applications"""
