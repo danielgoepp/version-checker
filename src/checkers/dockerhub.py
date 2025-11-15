@@ -1,17 +1,27 @@
+from functools import lru_cache
 from .utils import http_get
 from datetime import datetime
 import re
 
 
-def get_dockerhub_latest_version(repository, version_pattern=None, exclude_tags=None):
-    """
-    Get latest version from Docker Hub API
-    
+@lru_cache(maxsize=128)
+def _get_dockerhub_latest_version_cached(repository, version_pattern_str, exclude_tags_tuple):
+    """Internal cached version - uses hashable types for caching"""
+    # Convert back to original types
+    version_pattern = re.compile(version_pattern_str) if version_pattern_str else None
+    exclude_tags = list(exclude_tags_tuple) if exclude_tags_tuple else None
+
+    return _get_dockerhub_latest_version_impl(repository, version_pattern, exclude_tags)
+
+
+def _get_dockerhub_latest_version_impl(repository, version_pattern=None, exclude_tags=None):
+    """Implementation of Docker Hub version fetching
+
     Args:
         repository: Docker Hub repository (e.g., 'boky/postfix')
         version_pattern: Regex pattern to match version tags (default: semantic versioning)
         exclude_tags: List of tag names to exclude (default: common non-version tags)
-    
+
     Returns:
         Latest version string or None
     """
@@ -87,9 +97,29 @@ def get_dockerhub_latest_version(repository, version_pattern=None, exclude_tags=
         return None
 
 
+def get_dockerhub_latest_version(repository, version_pattern=None, exclude_tags=None):
+    """
+    Get latest version from Docker Hub API (cached to avoid redundant API calls)
+
+    Args:
+        repository: Docker Hub repository (e.g., 'boky/postfix')
+        version_pattern: Regex pattern to match version tags (default: semantic versioning)
+        exclude_tags: List of tag names to exclude (default: common non-version tags)
+
+    Returns:
+        Latest version string or None
+    """
+    # Convert to hashable types for caching
+    version_pattern_str = version_pattern.pattern if hasattr(version_pattern, 'pattern') else (version_pattern if isinstance(version_pattern, str) else None)
+    exclude_tags_tuple = tuple(exclude_tags) if exclude_tags else None
+
+    return _get_dockerhub_latest_version_cached(repository, version_pattern_str, exclude_tags_tuple)
+
+
+@lru_cache(maxsize=128)
 def get_dockerhub_latest_tag(repository, include_prereleases=False):
     """
-    Get latest tag from Docker Hub API (simple tag-based approach)
+    Get latest tag from Docker Hub API (cached to avoid redundant API calls)
     
     Args:
         repository: Docker Hub repository (e.g., 'boky/postfix')

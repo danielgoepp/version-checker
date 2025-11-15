@@ -1,3 +1,4 @@
+from functools import lru_cache
 from .utils import http_get
 import config
 
@@ -8,7 +9,9 @@ def _get_github_headers():
         headers['Authorization'] = f'token {config.GITHUB_API_TOKEN}'
     return headers
 
+@lru_cache(maxsize=128)
 def get_github_latest_version(repo):
+    """Get latest GitHub release version (cached to avoid redundant API calls)"""
     headers = _get_github_headers()
     data = http_get(f"https://api.github.com/repos/{repo}/releases/latest", headers=headers)
     if data and 'tag_name' in data:
@@ -16,7 +19,9 @@ def get_github_latest_version(repo):
         return tag_name[1:] if tag_name.startswith("v") else tag_name
     return None
 
+@lru_cache(maxsize=128)
 def get_github_latest_tag(repo):
+    """Get latest GitHub tag (cached to avoid redundant API calls)"""
     headers = _get_github_headers()
     data = http_get(f"https://api.github.com/repos/{repo}/tags", headers=headers)
     if data and isinstance(data, list) and data:
