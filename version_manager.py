@@ -64,7 +64,7 @@ class VersionManager:
     
     # Expected column names (order-independent)
     EXPECTED_COLUMNS = [
-        'Name', 'Instance', 'Type', 'Category', 'Target',
+        'Name', 'Enabled', 'Instance', 'Type', 'Category', 'Target',
         'GitHub', 'DockerHub', 'Current_Version', 'Latest_Version',
         'Status', 'Last_Checked', 'Check_Current', 'Check_Latest', 'Key'
     ]
@@ -545,9 +545,26 @@ class VersionManager:
         print(f"Starting concurrent version check for all applications (max {max_workers} workers)...")
         print("=" * 50)
 
-        # Collect all row numbers to check
-        row_nums = list(range(2, self.worksheet.max_row + 1))
+        # Collect row numbers for enabled applications only
+        row_nums = []
+        skipped = 0
+        for row_num in range(2, self.worksheet.max_row + 1):
+            # Check if Enabled column exists and is True
+            if 'Enabled' in self.columns:
+                enabled_cell = self.worksheet[f"{self.columns['Enabled']}{row_num}"]
+                if enabled_cell.value is True:
+                    row_nums.append(row_num)
+                else:
+                    skipped += 1
+            else:
+                # If no Enabled column, check all applications (backward compatibility)
+                row_nums.append(row_num)
+
         total_apps = len(row_nums)
+        if skipped > 0:
+            print(f"Skipping {skipped} disabled applications")
+        print(f"Checking {total_apps} enabled applications...")
+        print()
         completed = 0
 
         # Use ThreadPoolExecutor for concurrent checking
@@ -574,47 +591,69 @@ class VersionManager:
         print(f"Version check completed! Checked {total_apps} applications concurrently.")
     
     def show_summary(self):
-        """Display a summary of version status"""
+        """Display a summary of version status (enabled applications only)"""
         if self.worksheet is None:
             print("No worksheet loaded")
             return
-        
-        print("\nVersion Summary:")
+
+        print("\nVersion Summary (Enabled Applications):")
         print("=" * 40)
-        
-        # Count statuses
+
+        # Count statuses for enabled applications only
         status_counts = {}
         total_apps = 0
-        
+        disabled_apps = 0
+
         for row_num in range(2, self.worksheet.max_row + 1):
+            # Check if application is enabled
+            is_enabled = True
+            if 'Enabled' in self.columns:
+                enabled_cell = self.worksheet[f"{self.columns['Enabled']}{row_num}"]
+                is_enabled = enabled_cell.value is True
+
+            if not is_enabled:
+                disabled_apps += 1
+                continue
+
             if 'Status' in self.columns:
                 status_cell = self.worksheet[f"{self.columns['Status']}{row_num}"]
                 status = status_cell.value if status_cell.value else "Unknown"
                 status_counts[status] = status_counts.get(status, 0) + 1
             total_apps += 1
-        
+
         for status, count in status_counts.items():
             icon = self.STATUS_ICONS.get(status, '')
             print(f"{icon} {status}: {count}")
+
+        print(f"\nTotal Enabled Applications: {total_apps}")
+        if disabled_apps > 0:
+            print(f"Disabled Applications: {disabled_apps}")
         
-        print(f"\nTotal Applications: {total_apps}")
-        
-        # Show outdated applications
+        # Show outdated applications (enabled only)
         print(f"\n⚠️  Applications needing updates:")
         if all(col in self.columns for col in ['Status', 'Name', 'Instance', 'Current_Version', 'Latest_Version']):
             for row_num in range(2, self.worksheet.max_row + 1):
+                # Check if application is enabled
+                is_enabled = True
+                if 'Enabled' in self.columns:
+                    enabled_cell = self.worksheet[f"{self.columns['Enabled']}{row_num}"]
+                    is_enabled = enabled_cell.value is True
+
+                if not is_enabled:
+                    continue
+
                 status_cell = self.worksheet[f"{self.columns['Status']}{row_num}"]
                 if status_cell.value == 'Update Available':
                     name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
                     instance_cell = self.worksheet[f"{self.columns['Instance']}{row_num}"]
                     current_cell = self.worksheet[f"{self.columns['Current_Version']}{row_num}"]
                     latest_cell = self.worksheet[f"{self.columns['Latest_Version']}{row_num}"]
-                    
+
                     name = name_cell.value if name_cell.value else ""
                     instance = instance_cell.value if instance_cell.value else ""
                     current = current_cell.value if current_cell.value else "N/A"
                     latest = latest_cell.value if latest_cell.value else "N/A"
-                    
+
                     app_display = f"{name}-{instance}" if instance != 'prod' else name
                     print(f"  {app_display}: {current} -> {latest}")
         else:
