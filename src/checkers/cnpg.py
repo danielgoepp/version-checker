@@ -1,6 +1,7 @@
 import subprocess
 import re
 import yaml
+import json
 from .utils import http_get
 
 def get_cnpg_version(instance):
@@ -68,27 +69,36 @@ def get_cnpg_postgres_latest_version():
 def _get_cnpg_operator_version(instance):
     """Get CloudNativePG operator version from Kubernetes deployment"""
     try:
-        # Get CNPG operator deployment image version
-        describe_cmd = "kubectl describe pod -n cnpg-system | grep 'Image:' | grep cloudnative-pg"
-        describe_result = subprocess.run(
-            describe_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
+        # Get CNPG operator pods with JSON output for filtering
+        cmd = ["kubectl", "get", "pods", "-n", "cnpg-system", "-o", "json"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
 
-        if describe_result.returncode == 0:
-            output = describe_result.stdout.strip()
-            # Look for version in image tag like "ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0"
-            version_match = re.search(r"cloudnative-pg:v?(\d+\.\d+\.\d+)", output)
-            if version_match:
-                version = version_match.group(1)
-                print(f"  {instance}: {version}")
-                return version
-            else:
-                print(f"  {instance}: Could not parse version from image: {output}")
-                return None
-        else:
-            print(f"  {instance}: Error getting cnpg operator description")
+        if result.returncode != 0:
+            print(f"  {instance}: Error getting cnpg operator pods")
             return None
 
+        # Parse JSON output
+        pods_data = json.loads(result.stdout)
+
+        # Find cloudnative-pg container image from pods
+        for pod in pods_data.get('items', []):
+            containers = pod.get('spec', {}).get('containers', [])
+            for container in containers:
+                image = container.get('image', '')
+                if 'cloudnative-pg' in image:
+                    # Look for version in image tag like "ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0"
+                    version_match = re.search(r"cloudnative-pg:v?(\d+\.\d+\.\d+)", image)
+                    if version_match:
+                        version = version_match.group(1)
+                        print(f"  {instance}: {version}")
+                        return version
+
+        print(f"  {instance}: Could not find cloudnative-pg image")
+        return None
+
+    except json.JSONDecodeError as e:
+        print(f"  {instance}: Failed to parse kubectl output: {e}")
+        return None
     except subprocess.TimeoutExpired:
         print(f"  {instance}: Timeout getting version")
         return None
@@ -115,24 +125,36 @@ def _get_postgres_cluster_version(instance):
         namespace = mapping["namespace"]
         pod_pattern = mapping["pod_pattern"]
 
-        # First, get a running pod name for this instance
-        get_pod_cmd = f"kubectl get pods -n {namespace} | grep {pod_pattern} | grep Running | head -1 | awk '{{print $1}}'"
-        pod_result = subprocess.run(
-            get_pod_cmd, shell=True, capture_output=True, text=True, timeout=10
-        )
+        # Get pods using JSON output for filtering
+        cmd = ["kubectl", "get", "pods", "-n", namespace, "-o", "json"]
+        pod_result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
 
-        if pod_result.returncode != 0 or not pod_result.stdout.strip():
+        if pod_result.returncode != 0:
+            print(f"  {instance}: Error getting pods in {namespace}")
+            return None
+
+        # Parse JSON output
+        pods_data = json.loads(pod_result.stdout)
+
+        # Find running pod matching pattern
+        pod_name = None
+        for pod in pods_data.get('items', []):
+            name = pod.get('metadata', {}).get('name', '')
+            status = pod.get('status', {}).get('phase', '')
+
+            if pod_pattern in name and status == 'Running':
+                pod_name = name
+                break
+
+        if not pod_name:
             print(f"  {instance}: Could not find running {pod_pattern} pod in {namespace}")
             return None
 
-        pod_name = pod_result.stdout.strip()
         print(f"  {instance}: Found pod {pod_name}")
 
         # Execute psql to get PostgreSQL version
-        version_cmd = f'kubectl exec {pod_name} -n {namespace} -- psql -t -c "SELECT version();"'
-        version_result = subprocess.run(
-            version_cmd, shell=True, capture_output=True, text=True, timeout=15
-        )
+        version_cmd = ["kubectl", "exec", pod_name, "-n", namespace, "--", "psql", "-t", "-c", "SELECT version();"]
+        version_result = subprocess.run(version_cmd, capture_output=True, text=True, timeout=15, check=False)
 
         if version_result.returncode == 0:
             # Parse output like "PostgreSQL 17.2 (Debian 17.2-1.pgdg110+1) on x86_64-pc-linux-gnu..."
@@ -149,6 +171,9 @@ def _get_postgres_cluster_version(instance):
             print(f"  {instance}: Error executing psql version command: {version_result.stderr}")
             return None
 
+    except json.JSONDecodeError as e:
+        print(f"  {instance}: Failed to parse kubectl output: {e}")
+        return None
     except subprocess.TimeoutExpired:
         print(f"  {instance}: Timeout getting version")
         return None

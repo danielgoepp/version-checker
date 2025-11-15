@@ -6,11 +6,12 @@ def get_kopia_version(instance, url):
     if not url or not str(url).startswith(('http://', 'https://')):
         print_error(instance, "No valid URL configured")
         return None
-    
+
     try:
-        command = f"kopia server status --address={url} --version"
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
-        
+        # Build command as list for security
+        cmd = ["kopia", "server", "status", f"--address={url}", "--version"]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+
         if result.returncode == 0:
             raw_version = result.stdout.strip()
             # Clean up the version - extract just the version number
@@ -20,7 +21,7 @@ def get_kopia_version(instance, url):
         else:
             print_error(instance, "Error retrieving version")
             return None
-            
+
     except subprocess.TimeoutExpired:
         return handle_timeout_error(instance, "version retrieval")
     except Exception as e:

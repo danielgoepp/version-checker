@@ -1,58 +1,106 @@
 import subprocess
 import re
+import json
 from .utils import http_get, print_error, print_version, parse_image_version, extract_semantic_version
 
 
 class KubernetesChecker:
     """Base class for Kubernetes-based version checking"""
-    
+
     def __init__(self, instance, namespace=None):
         self.instance = instance
         self.namespace = namespace
-    
+
     def find_pod(self, pod_pattern, namespace=None):
-        """Find a running pod matching the given pattern"""
+        """Find a running pod matching the given pattern using kubectl JSON output"""
         ns = namespace or self.namespace
-        ns_flag = f"-n {ns}" if ns else ""
-        
-        cmd = f"kubectl get pods {ns_flag} | grep {pod_pattern} | grep Running | head -1 | awk '{{print $1}}'"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
-        
-        if result.returncode == 0 and result.stdout.strip():
-            pod_name = result.stdout.strip()
-            print(f"  {self.instance}: Found pod {pod_name}")
-            return pod_name
-        else:
+
+        # Build command as list for security
+        cmd = ["kubectl", "get", "pods", "-o", "json"]
+        if ns:
+            cmd.extend(["-n", ns])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+
+            if result.returncode != 0:
+                print_error(self.instance, f"kubectl get pods failed: {result.stderr}")
+                return None
+
+            # Parse JSON output
+            pods_data = json.loads(result.stdout)
+
+            # Filter for running pods matching pattern
+            for pod in pods_data.get('items', []):
+                pod_name = pod.get('metadata', {}).get('name', '')
+                status = pod.get('status', {}).get('phase', '')
+
+                if pod_pattern in pod_name and status == 'Running':
+                    print(f"  {self.instance}: Found pod {pod_name}")
+                    return pod_name
+
             print_error(self.instance, f"Could not find running {pod_pattern} pod")
             return None
-    
+
+        except json.JSONDecodeError as e:
+            print_error(self.instance, f"Failed to parse kubectl output: {e}")
+            return None
+        except subprocess.TimeoutExpired:
+            print_error(self.instance, "kubectl get pods timed out")
+            return None
+
     def exec_pod_command(self, pod_name, command, namespace=None, container=None):
         """Execute a command in a pod"""
         ns = namespace or self.namespace
-        ns_flag = f"-n {ns}" if ns else ""
-        container_flag = f"-c {container}" if container else ""
-        
-        cmd = f"kubectl exec {ns_flag} {pod_name} {container_flag} -- {command}"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
-        
-        if result.returncode == 0:
-            return result.stdout.strip()
+
+        # Build command as list for security
+        cmd = ["kubectl", "exec"]
+        if ns:
+            cmd.extend(["-n", ns])
+        cmd.append(pod_name)
+        if container:
+            cmd.extend(["-c", container])
+        cmd.append("--")
+
+        # Split command string into arguments if it's a string
+        if isinstance(command, str):
+            cmd.extend(command.split())
         else:
-            print_error(self.instance, f"Error executing {command}: {result.stderr}")
+            cmd.extend(command)
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
+
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                print_error(self.instance, f"Error executing {command}: {result.stderr}")
+                return None
+
+        except subprocess.TimeoutExpired:
+            print_error(self.instance, f"kubectl exec timed out for command: {command}")
             return None
-    
+
     def describe_resource(self, resource_type, resource_name, namespace=None):
         """Describe a Kubernetes resource"""
         ns = namespace or self.namespace
-        ns_flag = f"-n {ns}" if ns else ""
-        
-        cmd = f"kubectl describe {resource_type} {resource_name} {ns_flag}"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
-        
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            print_error(self.instance, f"Error describing {resource_type} {resource_name}")
+
+        # Build command as list for security
+        cmd = ["kubectl", "describe", resource_type, resource_name]
+        if ns:
+            cmd.extend(["-n", ns])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                print_error(self.instance, f"Error describing {resource_type} {resource_name}")
+                return None
+
+        except subprocess.TimeoutExpired:
+            print_error(self.instance, f"kubectl describe timed out for {resource_type} {resource_name}")
             return None
     
     def get_image_version_from_description(self, description, image_pattern, version_pattern=r"v?(\d+\.\d+(?:\.\d+)?)"):
