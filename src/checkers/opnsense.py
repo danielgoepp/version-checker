@@ -35,10 +35,10 @@ def get_opnsense_version(instance, url=None):
         print(f"  {instance}: Updates available")
         return {'current_version': current_version, 'full_version': full_version,
                'firmware_update_available': True, 'update_details': json.dumps(status_data)}
-    elif status_data.get('status') == 'ok':
+    elif status_data.get('status') in ('ok', 'none'):
         print(f"  {instance}: Up to date")
     else:
-        print(f"  {instance}: Status unknown")
+        print(f"  {instance}: Status unknown ({status_data.get('status')})")
         
     return {'current_version': current_version, 'full_version': full_version,
            'firmware_update_available': False, 'update_details': json.dumps(status_data)}
