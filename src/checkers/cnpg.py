@@ -113,7 +113,6 @@ def _get_postgres_cluster_version(instance):
         # Map instance names to namespaces and pod patterns based on full instance names
         instance_mapping = {
             "grafana-prod": {"namespace": "cnpg-grafana", "pod_pattern": "grafana-prod"},
-            "hertzbeat-prod": {"namespace": "cnpg-hertzbeat", "pod_pattern": "hertzbeat-prod"},
             "homeassistant-prod": {"namespace": "cnpg-homeassistant", "pod_pattern": "homeassistant-prod"}
         }
 

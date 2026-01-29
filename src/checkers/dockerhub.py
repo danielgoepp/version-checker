@@ -155,3 +155,37 @@ def get_dockerhub_latest_tag(repository, include_prereleases=False):
     except Exception as e:
         print(f"  Error getting latest tag from Docker Hub ({repository}): {e}")
         return None
+
+
+def get_dockerhub_latest_beta(repository):
+    """Get latest beta version from Docker Hub tags.
+
+    Matches tags in the format X.Y.Z-beta.N and returns the highest one.
+    """
+    try:
+        url = f"https://registry.hub.docker.com/v2/repositories/{repository}/tags/?page_size=100"
+        data = http_get(url, timeout=15)
+
+        if not (data and isinstance(data, dict) and 'results' in data):
+            return None
+
+        pattern = re.compile(r'^(\d+\.\d+\.\d+)-beta\.(\d+)$')
+        versions = []
+
+        for tag in data['results']:
+            tag_name = tag.get('name', '')
+            match = pattern.match(tag_name)
+            if match:
+                base = tuple(int(p) for p in match.group(1).split('.'))
+                beta_num = int(match.group(2))
+                versions.append((base, beta_num, tag_name))
+
+        if versions:
+            versions.sort(reverse=True)
+            return versions[0][2]
+
+        return None
+
+    except Exception as e:
+        print(f"  Error getting latest beta from Docker Hub ({repository}): {e}")
+        return None

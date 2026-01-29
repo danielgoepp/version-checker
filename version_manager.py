@@ -23,7 +23,7 @@ from src.checkers.kubectl import (
     get_calico_version, get_metallb_version, get_alertmanager_version, 
     get_fluentbit_version, get_mongodb_version, get_opensearch_version, 
     get_pgadmin_version, get_unpoller_version, get_certmanager_version, 
-    get_postfix_version, get_hertzbeat_kubectl_version, get_minio_kubectl_version
+    get_postfix_version, get_minio_kubectl_version
 )
 from src.checkers.cnpg import get_cnpg_version, get_cnpg_postgres_latest_version
 from src.checkers.server_status import check_server_status
@@ -40,13 +40,14 @@ from src.checkers.samba import get_samba_version, get_latest_samba_version
 from src.checkers.syncthing import check_syncthing_current_version
 from src.checkers.awx import check_awx_current_version
 from src.checkers.postfix import get_postfix_latest_version_from_dockerhub
-from src.checkers.dockerhub import get_dockerhub_latest_version
+from src.checkers.dockerhub import get_dockerhub_latest_version, get_dockerhub_latest_beta
 from src.checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
 from src.checkers.wyoming import get_wyoming_openwakeword_version, get_wyoming_piper_version, get_wyoming_whisper_version, get_wyoming_satellite_version
 from src.checkers.ollama import get_ollama_version
 from src.checkers.docker import get_docker_version
 from src.checkers.portainer import get_portainer_version
 from src.checkers.open_webui import get_open_webui_version
+from src.checkers.uptime_kuma import get_uptime_kuma_version as get_uptime_kuma_api_version
 import config
 
 class VersionManager:
@@ -210,11 +211,13 @@ class VersionManager:
 
         return sorted(names)
     
-    def _get_dockerhub_version_for_app(self, app_name, dockerhub_repo):
+    def _get_dockerhub_version_for_app(self, app_name, dockerhub_repo, version_pin=None):
         """Helper method to get Docker Hub version for specific applications"""
-        if app_name == 'MongoDB':
+        if version_pin == 'beta':
+            return get_dockerhub_latest_beta(dockerhub_repo)
+        if app_name == 'mongodb':
             return get_mongodb_latest_version()
-        elif app_name == 'Graylog':
+        elif app_name == 'graylog':
             if 'graylog' in dockerhub_repo.lower():
                 return get_graylog_latest_version_from_repo(dockerhub_repo)
             elif 'postgres' in dockerhub_repo.lower():
@@ -223,9 +226,9 @@ class VersionManager:
                 return get_postfix_latest_version_from_dockerhub(dockerhub_repo)
             else:
                 return get_dockerhub_latest_version(dockerhub_repo)
-        elif app_name == 'MinIO':
+        elif app_name == 'minio':
             # MinIO uses RELEASE.YYYY-MM-DDTHH-MM-SSZ format
-            return get_dockerhub_latest_version(dockerhub_repo, 
+            return get_dockerhub_latest_version(dockerhub_repo,
                 version_pattern=r'^RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-[a-z0-9]+)?$',
                 exclude_tags=['latest'])
         else:
@@ -233,7 +236,7 @@ class VersionManager:
     
     def _get_github_version_for_app(self, app_name, github_repo, check_latest):
         """Helper method to get GitHub version for specific applications"""
-        if app_name == 'MongoDB' and github_repo == 'mongodb/mongo':
+        if app_name == 'mongodb' and github_repo == 'mongodb/mongo':
             # Only use hardcoded MongoDB function for database instances
             return get_mongodb_latest_version()
         elif check_latest == 'github_release':
@@ -242,7 +245,7 @@ class VersionManager:
             return get_github_latest_tag(github_repo)
         return None
     
-    def get_latest_version(self, app_name, check_latest, github_repo, dockerhub_repo):
+    def get_latest_version(self, app_name, check_latest, github_repo, dockerhub_repo, version_pin=None):
         """Get latest version based on check_latest method"""
         latest_version = None
         
@@ -250,7 +253,7 @@ class VersionManager:
         if check_latest == 'github_release' or check_latest == 'github_tag':
             if github_repo and github_repo.strip():
                 # Special case for Konnected - use YAML project_version instead of GitHub tags
-                if app_name == 'Konnected':
+                if app_name == 'konnected':
                     latest_version = get_konnected_version('latest', None, github_repo)
                 else:
                     latest_version = self._get_github_version_for_app(app_name, github_repo, check_latest)
@@ -260,27 +263,27 @@ class VersionManager:
                 if app_name == 'cnpg' and 'postgres-containers' in dockerhub_repo:
                     latest_version = get_cnpg_postgres_latest_version()
                 else:
-                    latest_version = self._get_dockerhub_version_for_app(app_name, dockerhub_repo)
+                    latest_version = self._get_dockerhub_version_for_app(app_name, dockerhub_repo, version_pin)
         elif check_latest == 'proxmox':
             latest_version = get_proxmox_latest_version(include_ceph=True)
         elif check_latest == 'unifi_protect_rss':
             # Special case for UniFi Protect using RSS feed
-            if app_name == 'UniFi Protect':
+            if app_name == 'ui-protect':
                 latest_version = get_unifi_protect_latest_version()
         elif check_latest == 'unifi_network_rss':
             # Special case for UniFi Network using RSS feed
-            if app_name == 'UniFi Network':
+            if app_name == 'ui-network':
                 latest_version = get_unifi_network_latest_version()
         elif check_latest == 'unifi_os_nvr_rss':
             # Special case for UniFi OS NVR/UNVR using RSS feed
             latest_version = get_unifi_os_nvr_latest_version()
         elif check_latest == 'helm_chart':
             # Special case for MongoDB operator using Helm chart version
-            if app_name == 'MongoDB':
+            if app_name == 'mongodb':
                 from src.checkers.utils import get_helm_chart_version
                 latest_version = get_helm_chart_version('mongodb/helm-charts', 'community-operator', 'operator.version')
             # Special case for Fluent Bit using Helm chart appVersion
-            elif app_name == 'Fluent Bit':
+            elif app_name == 'fluent-bit':
                 from src.checkers.utils import get_helm_chart_app_version
                 latest_version = get_helm_chart_app_version('fluent/helm-charts', 'fluent-bit')
         # ssh_apt method - latest version will be populated during ssh current check
@@ -302,22 +305,22 @@ class VersionManager:
         
         # Get current version based on check_current method
         if check_current == 'api':
-            if app_name == 'Home Assistant':
+            if app_name == 'home-assistant':
                 if url:
                     current_version = get_home_assistant_version(instance, url)
-            elif app_name == 'ESPHome':
+            elif app_name == 'esphome':
                 if url:
                     current_version = get_esphome_version(url)
-            elif app_name == 'Konnected':
+            elif app_name == 'konnected':
                 # Check device API for current version
                 current_version = get_konnected_current_version(instance, url)
-            elif app_name == 'AirGradient':
+            elif app_name == 'airgradient':
                 # Check device API for current version with encryption key
                 encryption_key = app_data.get('Key', '')
                 current_version = get_airgradient_current_version(instance, url, encryption_key)
-            elif app_name == 'Traefik':
+            elif app_name == 'traefik':
                 current_version = get_traefik_version(instance, url)
-            elif app_name == 'OPNsense':
+            elif app_name == 'opnsense':
                 result = get_opnsense_version(instance, url)
                 if isinstance(result, dict):
                     current_version = result.get('current_version')
@@ -326,10 +329,10 @@ class VersionManager:
                     # Use the full_version as the latest version for OPNsense
                     if result.get('full_version'):
                         latest_version = result['full_version']
-            elif app_name == 'Proxmox':
+            elif app_name == 'proxmox':
                 if url:
                     current_version = get_proxmox_version(instance, url)
-            elif app_name == 'Tailscale':
+            elif app_name == 'tailscale':
                 print("  Checking all Tailscale devices...")
                 device_results = check_tailscale_versions(
                     api_key=config.TAILSCALE_API_KEY,
@@ -346,33 +349,35 @@ class VersionManager:
                     
                     # Latest version shows count of devices up to date  
                     latest_version = f"{devices_up_to_date} up-to-date"
-            elif app_name == 'Graylog':
+            elif app_name == 'graylog':
                 if url:
                     current_version = get_graylog_current_version(instance, url)
-            elif app_name == 'UniFi Protect':
+            elif app_name == 'ui-protect':
                 if url:
                     current_version = get_unifi_protect_version(instance, url)
-            elif app_name == 'UniFi Network':
+            elif app_name == 'ui-network':
                 if url:
                     current_version = get_unifi_network_version(instance, url)
-            elif app_name == 'AWX':
+            elif app_name == 'awx':
                 if url:
                     current_version = check_awx_current_version(instance, url)
-            elif app_name == 'Syncthing':
+            elif app_name == 'syncthing':
                 if url:
                     current_version = check_syncthing_current_version(instance, url)
             elif app_name == 'n8n':
                 if url:
                     current_version = get_n8n_version_api(instance, url)
-            elif app_name == 'Ollama':
+            elif app_name == 'ollama':
                 if url:
                     current_version = get_ollama_version(instance, url)
-            elif app_name == 'Portainer':
+            elif app_name == 'portainer':
                 if url:
                     current_version = get_portainer_version(instance, url)
-            elif app_name == 'Open WebUI':
+            elif app_name == 'open-webui':
                 if url:
                     current_version = get_open_webui_version(instance, url)
+            elif app_name == 'uptime-kuma':
+                current_version = get_uptime_kuma_api_version(instance, url)
             # Add more API-based applications here as needed
         
         elif check_current == 'ssh':
@@ -384,76 +389,68 @@ class VersionManager:
                     latest_version = kernel_result.get('latest_version')
             else:
                 # SSH for current version only - handle specific applications
-                if app_name == 'UniFi OS':
+                if app_name == 'unifi-os':
                     if url:
                         current_version = get_unifi_os_version(instance, url)
         
         elif check_current == 'kubectl':
-            if app_name == 'Telegraf':
+            if app_name == 'telegraf':
                 current_version = get_telegraf_version(instance)
-            elif app_name == 'VictoriaMetrics':
+            elif app_name == 'victoriametrics':
                 current_version = get_victoriametrics_version(instance)
-            elif app_name == 'Mosquitto':
+            elif app_name == 'mosquitto':
                 current_version = get_mosquitto_version(instance)
-            elif app_name == 'Calico':
+            elif app_name == 'calico':
                 current_version = get_calico_version(instance)
-            elif app_name == 'MetalLB':
+            elif app_name == 'metallb':
                 current_version = get_metallb_version(instance)
-            elif app_name == 'Alertmanager':
+            elif app_name == 'alertmanager':
                 current_version = get_alertmanager_version(instance)
-            elif app_name == 'Fluent Bit':
+            elif app_name == 'fluent-bit':
                 current_version = get_fluentbit_version(instance)
-            elif app_name == 'MongoDB':
+            elif app_name == 'mongodb':
                 current_version = get_mongodb_version(instance)
-            elif app_name == 'OpenSearch':
+            elif app_name == 'opensearch':
                 current_version = get_opensearch_version(instance)
             elif app_name == 'cnpg':
                 current_version = get_cnpg_version(instance)
-            elif app_name == 'pgAdmin':
+            elif app_name == 'pgadmin':
                 current_version = get_pgadmin_version(instance)
-            elif app_name == 'Grafana':
+            elif app_name == 'grafana':
                 current_version = get_grafana_version(instance)
-            elif app_name == 'UniFi Poller':
+            elif app_name == 'unpoller':
                 current_version = get_unpoller_version(instance)
             elif app_name == 'cert-manager':
                 current_version = get_certmanager_version(instance)
-            elif app_name == 'K3s':
+            elif app_name == 'k3s':
                 current_version = get_k3s_current_version(instance)
-            elif app_name == 'Postfix':
+            elif app_name == 'postfix':
                 current_version = get_postfix_version(instance)
-            elif app_name == 'HertzBeat':
-                current_version = get_hertzbeat_kubectl_version(instance)
-            elif app_name == 'MinIO':
+            elif app_name == 'minio':
                 current_version = get_minio_kubectl_version(instance)
             elif app_name == 'n8n':
                 current_version = get_n8n_version_kubectl(instance)
-            elif app_name == 'Wyoming OpenWakeWord':
+            elif app_name == 'rhasspy' and instance == 'wyoming-openwakeword':
                 current_version = get_wyoming_openwakeword_version(instance, url)
-            elif app_name == 'Wyoming Piper':
+            elif app_name == 'rhasspy' and instance == 'wyoming-piper':
                 current_version = get_wyoming_piper_version(instance, url)
-            elif app_name == 'Wyoming Whisper':
-                current_version = get_wyoming_whisper_version(instance, url)
-            elif app_name == 'Rhasspy' and instance == 'wyoming-openwakeword':
-                current_version = get_wyoming_openwakeword_version(instance, url)
-            elif app_name == 'Rhasspy' and instance == 'wyoming-piper':
-                current_version = get_wyoming_piper_version(instance, url)
-            elif app_name == 'Rhasspy' and instance == 'wyoming-whisper':
+            elif app_name == 'rhasspy' and instance == 'wyoming-whisper':
                 current_version = get_wyoming_whisper_version(instance, url)
         
         elif check_current == 'mqtt':
-            if app_name == 'Zigbee2MQTT':
+            if app_name == 'zigbee2mqtt':
                 current_version = get_zigbee2mqtt_version(instance)
         
         elif check_current == 'command':
-            if app_name == 'Kopia':
+            if app_name == 'kopia':
                 current_version = get_kopia_version(instance, url)
-            elif app_name == 'Samba':
+            elif app_name == 'samba':
                 current_version = get_samba_version(instance, url)
                 if check_latest == 'ssh_apt':
                     latest_version = get_latest_samba_version(instance)
-            elif app_name == 'Docker':
+            elif app_name == 'docker':
                 current_version = get_docker_version(instance, url)
-            elif app_name == 'Wyoming Satellite':
+            elif app_name == 'wyoming-satellite':
                 current_version = get_wyoming_satellite_version(instance, url)
         
         return current_version, latest_version, firmware_update_available
@@ -478,7 +475,7 @@ class VersionManager:
         print(f"Checking {app_name} ({instance})...")
         
         # Special handling for apps that need current version for smart latest version logic
-        if app_name == 'UniFi OS' and check_latest == 'unifi_os_nvr_rss':
+        if app_name == 'unifi-os' and check_latest == 'unifi_os_nvr_rss':
             # Get current version first
             current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
             # Then get latest version with current version context
@@ -490,7 +487,8 @@ class VersionManager:
             latest_version = get_proxmox_latest_version(include_ceph=True, current_version=current_version)
         else:
             # Standard flow: get latest version first
-            latest_version = self.get_latest_version(app_name, check_latest, github_repo, dockerhub_repo)
+            version_pin = app_data.get('Version_Pin', '')
+            latest_version = self.get_latest_version(app_name, check_latest, github_repo, dockerhub_repo, version_pin)
 
             # Get current version (and possibly additional latest version from SSH methods)
             current_version, ssh_latest_version, firmware_update_available = self.get_current_version(app_data)
@@ -518,7 +516,7 @@ class VersionManager:
         status = "Unknown"
         if current_version and latest_version:
             # Special handling for Tailscale multi-device checking
-            if check_current == 'api' and app_name == 'Tailscale':
+            if check_current == 'api' and app_name == 'tailscale':
                 # For Tailscale, current_version contains devices needing updates count
                 if "0 need updates" in current_version:
                     status = "Up to Date"

@@ -82,5 +82,9 @@ awx_prod_token = get_optional_env('AWX_API_TOKEN_PROD', None, 'AWX production AP
 if awx_prod_token:
     AWX_API_TOKENS['prod'] = awx_prod_token
 
+# Uptime Kuma credentials - OPTIONAL (for version checking)
+UPTIME_KUMA_USERNAME = get_optional_env('UPTIME_KUMA_USERNAME', None, 'Uptime Kuma username')
+UPTIME_KUMA_PASSWORD = get_optional_env('UPTIME_KUMA_PASSWORD', None, 'Uptime Kuma password')
+
 # GitHub API credentials - OPTIONAL (for rate limit avoidance)
 GITHUB_API_TOKEN = get_optional_env('GITHUB_TOKEN', None, 'GitHub personal access token for API rate limit avoidance')
