@@ -513,10 +513,8 @@ class VersionManager:
         # Prepare updates
         updates = {'Last_Checked': timestamp}
         
-        if current_version:
-            updates['Current_Version'] = current_version
-        if latest_version:
-            updates['Latest_Version'] = latest_version
+        updates['Current_Version'] = current_version if current_version else ''
+        updates['Latest_Version'] = latest_version if latest_version else ''
         
         # Update notes if firmware update is available (OPNsense specific)
         if firmware_update_available:

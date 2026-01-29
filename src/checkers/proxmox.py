@@ -243,7 +243,7 @@ def get_proxmox_latest_version(include_ceph=False, current_version=None):
             'Authorization': f'PVEAPIToken={config.PROXMOX_API_TOKEN}'
         }
 
-        response = requests.get(api_url, headers=headers, timeout=10, verify=False)
+        response = requests.get(api_url, headers=headers, timeout=10)
 
         if response.status_code == 200:
             data = response.json()

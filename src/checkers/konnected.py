@@ -52,10 +52,7 @@ def get_konnected_current_version(instance, url=None):
         
         # Run the async function
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            version = loop.run_until_complete(get_esphome_device_info())
-            loop.close()
+            version = asyncio.run(get_esphome_device_info())
             
             if version and not version.startswith("Error:"):
                 print_version(instance, f"ESPHome version: {version}")
