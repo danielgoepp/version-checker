@@ -223,7 +223,10 @@ def compare_proxmox_versions(current_version, latest_version):
 
 def get_proxmox_latest_version(include_ceph=False, current_version=None):
     """
-    Get latest Proxmox VE version from endoflife.date API, optionally with Ceph
+    Get latest Proxmox VE version from Proxmox APT API, optionally with Ceph
+
+    Queries the pve-manager package version from the Proxmox node's APT versions
+    endpoint to get the actual patch-level version (e.g., 9.1.4 instead of just 9.1).
 
     Args:
         include_ceph: Whether to include Ceph latest version
@@ -233,40 +236,41 @@ def get_proxmox_latest_version(include_ceph=False, current_version=None):
         str: Latest version string (possibly combined with Ceph) or None
     """
     try:
-        # Use endoflife.date API for Proxmox VE version information
-        api_url = "https://endoflife.date/api/proxmox-ve.json"
+        # Query the first Proxmox node's APT versions endpoint for pve-manager package
+        # This gives us the actual available version with full patch level
+        api_url = "https://pve11.goepp.net:8006/api2/json/nodes/pve11/apt/versions"
+        headers = {
+            'Authorization': f'PVEAPIToken={config.PROXMOX_API_TOKEN}'
+        }
 
-        response = requests.get(api_url, timeout=10)
+        response = requests.get(api_url, headers=headers, timeout=10, verify=False)
 
         if response.status_code == 200:
-            versions = response.json()
+            data = response.json()
+            proxmox_latest = None
 
-            # The API returns an array of version objects, sorted with latest first
-            if versions and len(versions) > 0:
-                latest = versions[0]
+            for pkg in data.get('data', []):
+                if pkg.get('Package') == 'pve-manager':
+                    proxmox_latest = pkg.get('Version')
+                    break
 
-                # Use the 'latest' field which has more detailed version info like "9.0"
-                proxmox_latest = latest.get('latest') or latest.get('cycle')
+            if proxmox_latest:
+                if include_ceph:
+                    # Get Ceph latest version from the same APT data
+                    for pkg in data.get('data', []):
+                        if pkg.get('Package') == 'ceph':
+                            import re
+                            ceph_ver = pkg.get('Version', '')
+                            # Strip distro suffix (e.g., "19.2.3-pve2" -> "19.2.3")
+                            match = re.match(r'(\d+\.\d+\.\d+)', ceph_ver)
+                            if match:
+                                return f"{proxmox_latest} (Ceph {match.group(1)})"
+                            break
 
-                if proxmox_latest and current_version:
-                    # If current version is a patch release of the same major.minor,
-                    # use the current version as the latest to avoid false update notifications
-                    comparison = compare_proxmox_versions(current_version.split()[0], proxmox_latest)
-                    if comparison >= 0:  # Current is same or newer
-                        # Extract just the version part from current_version
-                        import re
-                        match = re.match(r'(\d+\.\d+(?:\.\d+)?)', current_version)
-                        if match:
-                            proxmox_latest = match.group(1)
+                return proxmox_latest
 
-                if proxmox_latest:
-                    if include_ceph:
-                        # Get latest supported Ceph version for this Proxmox version
-                        ceph_latest = get_ceph_latest_version_for_proxmox(proxmox_latest)
-                        if ceph_latest:
-                            return f"{proxmox_latest} (Ceph {ceph_latest})"
-
-                    return proxmox_latest
+            print("  pve-manager package not found in APT versions response")
+            return None
 
         else:
             print(f"  Failed to get latest Proxmox version: HTTP {response.status_code}")
@@ -279,7 +283,7 @@ def get_proxmox_latest_version(include_ceph=False, current_version=None):
         print(f"  Connection error getting latest Proxmox version")
         return None
     except json.JSONDecodeError:
-        print(f"  Invalid JSON response from endoflife.date API")
+        print(f"  Invalid JSON response from Proxmox API")
         return None
     except Exception as e:
         print(f"  Error getting latest Proxmox version: {e}")
