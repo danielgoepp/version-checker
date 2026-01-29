@@ -188,6 +188,11 @@ class VersionManager:
 
         matching_rows = []
         for row_num in range(2, self.worksheet.max_row + 1):
+            # Skip disabled applications
+            if 'Enabled' in self.columns:
+                enabled_cell = self.worksheet[f"{self.columns['Enabled']}{row_num}"]
+                if enabled_cell.value is not True:
+                    continue
             name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
             if name_cell.value and name_cell.value.lower() == app_name.lower():
                 matching_rows.append(row_num)
@@ -205,6 +210,11 @@ class VersionManager:
 
         names = set()
         for row_num in range(2, self.worksheet.max_row + 1):
+            # Skip disabled applications
+            if 'Enabled' in self.columns:
+                enabled_cell = self.worksheet[f"{self.columns['Enabled']}{row_num}"]
+                if enabled_cell.value is not True:
+                    continue
             name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
             if name_cell.value:
                 names.add(name_cell.value)
@@ -712,14 +722,20 @@ class VersionManager:
         }
         
         for row_num in range(2, self.worksheet.max_row + 1):
+            # Skip disabled applications
+            if 'Enabled' in self.columns:
+                enabled_cell = self.worksheet[f"{self.columns['Enabled']}{row_num}"]
+                if enabled_cell.value is not True:
+                    continue
+
             row_data = self.get_row_data(row_num)
-            
+
             name = str(row_data.get('Name', '')) if row_data.get('Name') else ''
             instance = str(row_data.get('Instance', '')) if row_data.get('Instance') else ''
             current = str(row_data.get('Current_Version', '')) if row_data.get('Current_Version') else ''
             latest = str(row_data.get('Latest_Version', '')) if row_data.get('Latest_Version') else ''
             status = str(row_data.get('Status', '')) if row_data.get('Status') else ''
-            
+
             # Update max widths
             max_widths['name'] = max(max_widths['name'], len(name))
             max_widths['instance'] = max(max_widths['instance'], len(instance))
