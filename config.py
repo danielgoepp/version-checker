@@ -25,23 +25,6 @@ def get_optional_env(key, default, description):
     """Get optional environment variable with default"""
     return os.getenv(key, default)
 
-def get_optional_env_bool(key, default, description):
-    """Get optional environment variable as boolean"""
-    value = os.getenv(key)
-    if value is None:
-        return default
-    return value.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
-
-def load_instance_tokens(prefix):
-    """Load instance tokens from environment using a common prefix"""
-    tokens = {}
-    prefix_len = len(prefix)
-    for key, value in os.environ.items():
-        if key.startswith(prefix) and value:
-            instance = key[prefix_len:].lower().replace('_', '-')
-            tokens[instance] = value
-    return tokens
-
 # Home Assistant tokens - REQUIRED
 HA_TOKENS = {
     "prod": get_required_env('HA_TOKEN_PROD', 'Home Assistant production API token'),
@@ -93,8 +76,11 @@ if syncthing_prod_key:
     SYNCTHING_API_KEYS['prod'] = syncthing_prod_key
 
 # AWX API credentials - OPTIONAL (for version checking)
-AWX_API_TOKENS = load_instance_tokens('AWX_API_TOKEN_')
-AWX_VERIFY_SSL = get_optional_env_bool('AWX_VERIFY_SSL', True, 'Verify AWX SSL certificates')
+AWX_API_TOKENS = {}
+# Individual instance API tokens can be set in environment variables
+awx_prod_token = get_optional_env('AWX_API_TOKEN_PROD', None, 'AWX production API token')
+if awx_prod_token:
+    AWX_API_TOKENS['prod'] = awx_prod_token
 
 # Uptime Kuma credentials - OPTIONAL (for version checking)
 UPTIME_KUMA_USERNAME = get_optional_env('UPTIME_KUMA_USERNAME', None, 'Uptime Kuma username')
