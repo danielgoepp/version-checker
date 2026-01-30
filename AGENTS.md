@@ -22,7 +22,7 @@ This file keeps a lightweight record of how we work in this repository and what 
 - **No shell=True**: All subprocess calls must be list-based.
 - **Prefer Docker Hub** when both GitHub and DockerHub fields exist.
 - **Keep changes modular**: Put service-specific logic in `checkers/` and wire in `version_manager.py`.
-- **Update docs**: If code changes, update `README.md` and any relevant docs before commits.
+- **Docs timing**: Do not update `README.md` on every change; only update docs when explicitly asked or during final commit prep.
 
 ## Common Workflows
 - **Run all checks**: `./check_versions.py --check-all`
