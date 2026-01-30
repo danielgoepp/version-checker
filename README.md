@@ -56,6 +56,9 @@ python3 update_excel.py
 # List all applications and instances
 ./check_versions.py --list
 
+# List only applications needing updates
+./check_versions.py --updates
+
 # Check specific application (checks all instances)
 ./check_versions.py --app "ApplicationName"  # Checks all instances
 
@@ -70,6 +73,7 @@ Run `./check_versions.py` without arguments for menu-driven interface:
 - Check single application
 - Show summary
 - Show all applications
+- Show updates only
 
 ## Excel Structure
 

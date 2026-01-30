@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 from datetime import datetime
+import io
 import re
+import sys
 import urllib3
 from openpyxl import load_workbook
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -610,24 +612,60 @@ class VersionManager:
         print()
         completed = 0
 
-        # Use ThreadPoolExecutor for concurrent checking
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            future_to_row = {
-                executor.submit(self.check_single_application, row_num): row_num
-                for row_num in row_nums
-            }
+        # Thread-local storage for capturing output per app
+        _thread_local = threading.local()
+        _real_stdout = sys.stdout
+        _print_lock = threading.Lock()
 
-            # Process completed tasks as they finish
-            for future in as_completed(future_to_row):
-                row_num = future_to_row[future]
-                completed += 1
-                try:
-                    future.result()  # Raise any exceptions that occurred
-                    if completed % 5 == 0 or completed == total_apps:
-                        print(f"Progress: {completed}/{total_apps} applications checked")
-                except Exception as e:
-                    print(f"Error checking row {row_num}: {e}")
+        class ThreadLocalStdout:
+            """Redirects writes to a thread-local buffer when available"""
+            def write(self, text):
+                buf = getattr(_thread_local, 'buffer', None)
+                if buf is not None:
+                    buf.write(text)
+                else:
+                    _real_stdout.write(text)
+            def flush(self):
+                _real_stdout.flush()
+
+        def buffered_check(row_num):
+            """Run check_single_application with buffered output"""
+            _thread_local.buffer = io.StringIO()
+            try:
+                self.check_single_application(row_num)
+                return _thread_local.buffer.getvalue()
+            finally:
+                _thread_local.buffer = None
+
+        # Redirect stdout to thread-local buffers
+        sys.stdout = ThreadLocalStdout()
+
+        # Use ThreadPoolExecutor for concurrent checking
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_row = {
+                    executor.submit(buffered_check, row_num): row_num
+                    for row_num in row_nums
+                }
+
+                for future in as_completed(future_to_row):
+                    row_num = future_to_row[future]
+                    completed += 1
+                    try:
+                        output = future.result()
+                        if output:
+                            with _print_lock:
+                                _real_stdout.write(output)
+                                if not output.endswith('\n'):
+                                    _real_stdout.write('\n')
+                        if completed % 5 == 0 or completed == total_apps:
+                            with _print_lock:
+                                _real_stdout.write(f"Progress: {completed}/{total_apps} applications checked\n")
+                    except Exception as e:
+                        with _print_lock:
+                            _real_stdout.write(f"Error checking row {row_num}: {e}\n")
+        finally:
+            sys.stdout = _real_stdout
 
         self.save_workbook()
         print("=" * 50)
@@ -766,6 +804,73 @@ class VersionManager:
         
         print(f"\nTotal: {len(all_data)} applications")
 
+    def show_updates(self):
+        """Show only applications with updates available (enabled only)"""
+        if self.worksheet is None:
+            print("No worksheet loaded")
+            return
+
+        required_cols = ['Status', 'Name', 'Instance', 'Current_Version', 'Latest_Version']
+        if not all(col in self.columns for col in required_cols):
+            print("Unable to show updates - missing required columns")
+            return
+
+        updates = []
+        max_widths = {
+            'index': 4,
+            'name': len('Name'),
+            'instance': len('Instance'),
+            'current': len('Current'),
+            'latest': len('Latest'),
+            'status': 3,
+        }
+
+        for row_num in range(2, self.worksheet.max_row + 1):
+            if 'Enabled' in self.columns:
+                enabled_cell = self.worksheet[f"{self.columns['Enabled']}{row_num}"]
+                if enabled_cell.value is not True:
+                    continue
+
+            status_cell = self.worksheet[f"{self.columns['Status']}{row_num}"]
+            if status_cell.value != 'Update Available':
+                continue
+
+            name_cell = self.worksheet[f"{self.columns['Name']}{row_num}"]
+            instance_cell = self.worksheet[f"{self.columns['Instance']}{row_num}"]
+            current_cell = self.worksheet[f"{self.columns['Current_Version']}{row_num}"]
+            latest_cell = self.worksheet[f"{self.columns['Latest_Version']}{row_num}"]
+
+            name = str(name_cell.value) if name_cell.value else ''
+            instance = str(instance_cell.value) if instance_cell.value else ''
+            current = str(current_cell.value) if current_cell.value else ''
+            latest = str(latest_cell.value) if latest_cell.value else ''
+
+            max_widths['name'] = max(max_widths['name'], len(name))
+            max_widths['instance'] = max(max_widths['instance'], len(instance))
+            max_widths['current'] = max(max_widths['current'], len(current))
+            max_widths['latest'] = max(max_widths['latest'], len(latest))
+
+            updates.append({
+                'name': name,
+                'instance': instance,
+                'current': current,
+                'latest': latest,
+                'status': 'Update Available',
+            })
+
+        total_width = sum(max_widths.values()) + len(max_widths) * 2
+
+        print("\nApplications Needing Updates:")
+        print("=" * total_width)
+        print(f"{'#':<{max_widths['index']}} {'Name':<{max_widths['name']}} {'Instance':<{max_widths['instance']}} {'Current':<{max_widths['current']}} {'Latest':<{max_widths['latest']}} {'':<{max_widths['status']}}")
+        print("-" * total_width)
+
+        for index, data in enumerate(updates):
+            status_icon = self.STATUS_ICONS.get(data['status'], '')
+            print(f"{index:<{max_widths['index']}} {data['name']:<{max_widths['name']}} {data['instance']:<{max_widths['instance']}} {data['current']:<{max_widths['current']}} {data['latest']:<{max_widths['latest']}} {status_icon:<{max_widths['status']}}")
+
+        print(f"\nTotal: {len(updates)} applications")
+
 def main():
     """Main interactive interface"""
     vm = VersionManager()
@@ -778,9 +883,10 @@ def main():
         print("2. Check single application")
         print("3. Show summary")
         print("4. List all applications")
-        print("5. Exit")
+        print("5. List updates only")
+        print("6. Exit")
         
-        choice = input("\nEnter choice (1-5): ").strip()
+        choice = input("\nEnter choice (1-6): ").strip()
         
         if choice == '1':
             vm.check_all_applications()
@@ -801,9 +907,11 @@ def main():
         elif choice == '4':
             vm.show_applications()
         elif choice == '5':
+            vm.show_updates()
+        elif choice == '6':
             break
         else:
-            print("Invalid choice. Please enter 1-5.")
+            print("Invalid choice. Please enter 1-6.")
 
 if __name__ == "__main__":
     main()

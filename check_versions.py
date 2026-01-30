@@ -20,6 +20,8 @@ def main():
                        help='Show summary and exit')
     parser.add_argument('--list', action='store_true',
                        help='List all applications and exit')
+    parser.add_argument('--updates', action='store_true',
+                       help='List only applications with updates available and exit')
     parser.add_argument('--app', type=str,
                        help='Check specific application by name')
     parser.add_argument('--workers', type=int, default=10,
@@ -39,6 +41,8 @@ def main():
         vm.show_summary()
     elif args.list:
         vm.show_applications()
+    elif args.updates:
+        vm.show_updates()
     elif args.app:
         # Find application by name using VersionManager methods
         matching_rows = vm.find_application_rows_by_name(args.app)
