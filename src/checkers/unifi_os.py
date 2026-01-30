@@ -38,7 +38,6 @@ def get_unifi_os_nvr_latest_version(current_version=None):
                         # Special handling for early access users:
                         # If current version is newer than RSS stable version, use current as latest
                         if current_version and _is_version_newer(current_version, rss_version):
-                            print(f"Debug: Current version {current_version} is newer than RSS stable {rss_version} (likely early access)")
                             return current_version
                         
                         return rss_version
@@ -93,7 +92,6 @@ def get_unifi_os_version(instance, url):
     for command in commands_to_try:
         result = ssh_get_version(instance, ssh_target, command)
         if result and result.strip():
-            print(f"Debug: Command '{command}' returned: {result.strip()}")
             
             # Parse version from the result
             # Pattern for /usr/lib/version: UNVR4.al324.v4.4.2.b26bf4a.250901.1127
@@ -106,7 +104,6 @@ def get_unifi_os_version(instance, url):
                 match = re.search(pattern, result)
                 if match:
                     version = match.group(1)
-                    print(f"Debug: Found UniFi OS version {version} using command: {command}")
                     return version
     
     print_error(instance, "Could not determine UniFi OS version via SSH")
