@@ -41,6 +41,8 @@ python3 update_excel.py
 ```
 
 4. Update config.py with your credentials (based on existing pattern)
+   - AWX tokens: set `AWX_API_TOKEN_<INSTANCE>` (e.g., `AWX_API_TOKEN_PROD`, `AWX_API_TOKEN_AWX_PROD`)
+   - Optional: set `AWX_VERIFY_SSL=false` for self-signed AWX certificates
 
 ## Usage
 

@@ -2,19 +2,14 @@ import subprocess
 import json
 import re
 
-def get_k3s_current_version(instance):
-    """Get current k3s version using kubectl with context switching"""
+def get_k3s_current_version(instance, context=None):
+    """Get current k3s version using kubectl with --context flag"""
     try:
-        # Switch to the appropriate kubectl context
-        switch_cmd = ["kubectl", "config", "use-context", instance]
-        switch_result = subprocess.run(switch_cmd, capture_output=True, text=True, timeout=10, check=False)
-
-        if switch_result.returncode != 0:
-            print(f"  {instance}: Failed to switch to kubectl context")
-            return None
-
-        # Get nodes information using kubectl
-        cmd = ["kubectl", "get", "nodes", "-o", "json"]
+        # Use --context flag for thread-safe cluster targeting
+        cmd = ["kubectl"]
+        if context:
+            cmd.extend(["--context", context])
+        cmd.extend(["get", "nodes", "-o", "json"])
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
 
         if result.returncode != 0:

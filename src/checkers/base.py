@@ -7,16 +7,25 @@ from .utils import http_get, print_error, print_version, parse_image_version, ex
 class KubernetesChecker:
     """Base class for Kubernetes-based version checking"""
 
-    def __init__(self, instance, namespace=None):
+    def __init__(self, instance, namespace=None, context=None):
         self.instance = instance
         self.namespace = namespace
+        self.context = context
+
+    def _kubectl_cmd(self, *args):
+        """Build a kubectl command with optional --context flag"""
+        cmd = ["kubectl"]
+        if self.context:
+            cmd.extend(["--context", self.context])
+        cmd.extend(args)
+        return cmd
 
     def find_pod(self, pod_pattern, namespace=None):
         """Find a running pod matching the given pattern using kubectl JSON output"""
         ns = namespace or self.namespace
 
         # Build command as list for security
-        cmd = ["kubectl", "get", "pods", "-o", "json"]
+        cmd = self._kubectl_cmd("get", "pods", "-o", "json")
         if ns:
             cmd.extend(["-n", ns])
 
@@ -54,7 +63,7 @@ class KubernetesChecker:
         ns = namespace or self.namespace
 
         # Build command as list for security
-        cmd = ["kubectl", "exec"]
+        cmd = self._kubectl_cmd("exec")
         if ns:
             cmd.extend(["-n", ns])
         cmd.append(pod_name)
@@ -86,7 +95,7 @@ class KubernetesChecker:
         ns = namespace or self.namespace
 
         # Build command as list for security
-        cmd = ["kubectl", "describe", resource_type, resource_name]
+        cmd = self._kubectl_cmd("describe", resource_type, resource_name)
         if ns:
             cmd.extend(["-n", ns])
 

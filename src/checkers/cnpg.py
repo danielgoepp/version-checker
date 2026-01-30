@@ -4,7 +4,7 @@ import yaml
 import json
 from .utils import http_get
 
-def get_cnpg_version(instance):
+def get_cnpg_version(instance, context=None, namespace=None):
     """
     Unified CNPG version checker for both operator and PostgreSQL cluster instances.
 
@@ -12,9 +12,9 @@ def get_cnpg_version(instance):
     - PostgreSQL instances: Checks PostgreSQL version in CNPG cluster pods
     """
     if instance == 'operator':
-        return _get_cnpg_operator_version(instance)
+        return _get_cnpg_operator_version(instance, context=context, namespace=namespace)
     else:
-        return _get_postgres_cluster_version(instance)
+        return _get_postgres_cluster_version(instance, context=context, namespace=namespace)
 
 
 def get_cnpg_postgres_latest_version():
@@ -66,11 +66,20 @@ def get_cnpg_postgres_latest_version():
         return None
 
 
-def _get_cnpg_operator_version(instance):
+def _kubectl_cmd(context, *args):
+    """Build a kubectl command with optional --context flag"""
+    cmd = ["kubectl"]
+    if context:
+        cmd.extend(["--context", context])
+    cmd.extend(args)
+    return cmd
+
+
+def _get_cnpg_operator_version(instance, context=None, namespace=None):
     """Get CloudNativePG operator version from Kubernetes deployment"""
     try:
-        # Get CNPG operator pods with JSON output for filtering
-        cmd = ["kubectl", "get", "pods", "-n", "cnpg-system", "-o", "json"]
+        ns = namespace or "cnpg-system"
+        cmd = _kubectl_cmd(context, "get", "pods", "-n", ns, "-o", "json")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
 
         if result.returncode != 0:
@@ -107,25 +116,17 @@ def _get_cnpg_operator_version(instance):
         return None
 
 
-def _get_postgres_cluster_version(instance):
+def _get_postgres_cluster_version(instance, context=None, namespace=None):
     """Get PostgreSQL version from CNPG cluster instances"""
     try:
-        # Map instance names to namespaces and pod patterns based on full instance names
-        instance_mapping = {
-            "grafana-prod": {"namespace": "cnpg-grafana", "pod_pattern": "grafana-prod"},
-            "homeassistant-prod": {"namespace": "cnpg-homeassistant", "pod_pattern": "homeassistant-prod"}
-        }
-
-        if instance not in instance_mapping:
-            print(f"  {instance}: Unknown PostgreSQL instance")
+        if not namespace:
+            print(f"  {instance}: No namespace configured")
             return None
 
-        mapping = instance_mapping[instance]
-        namespace = mapping["namespace"]
-        pod_pattern = mapping["pod_pattern"]
+        pod_pattern = instance
 
         # Get pods using JSON output for filtering
-        cmd = ["kubectl", "get", "pods", "-n", namespace, "-o", "json"]
+        cmd = _kubectl_cmd(context, "get", "pods", "-n", namespace, "-o", "json")
         pod_result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
 
         if pod_result.returncode != 0:
@@ -152,7 +153,7 @@ def _get_postgres_cluster_version(instance):
         print(f"  {instance}: Found pod {pod_name}")
 
         # Execute psql to get PostgreSQL version
-        version_cmd = ["kubectl", "exec", pod_name, "-n", namespace, "--", "psql", "-t", "-c", "SELECT version();"]
+        version_cmd = _kubectl_cmd(context, "exec", pod_name, "-n", namespace, "--", "psql", "-t", "-c", "SELECT version();")
         version_result = subprocess.run(version_cmd, capture_output=True, text=True, timeout=15, check=False)
 
         if version_result.returncode == 0:

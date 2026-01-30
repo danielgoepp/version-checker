@@ -18,9 +18,9 @@ def get_n8n_version_api(instance, url):
     # Try health endpoint
     return checker.get_json_api_version("health", version_field="version")
 
-def get_n8n_version_kubectl(instance):
+def get_n8n_version_kubectl(instance, context=None, namespace=None):
     """Get n8n version from Kubernetes pod"""
-    checker = KubernetesChecker(instance, "n8n")
+    checker = KubernetesChecker(instance, namespace=namespace or "n8n", context=context)
     
     pod_name = checker.find_pod("n8n")
     if not pod_name:
