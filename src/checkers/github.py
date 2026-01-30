@@ -1,5 +1,5 @@
 from functools import lru_cache
-from .utils import http_get
+from .utils import http_get, extract_semantic_version
 import config
 
 def _get_github_headers():
@@ -16,7 +16,9 @@ def get_github_latest_version(repo):
     data = http_get(f"https://api.github.com/repos/{repo}/releases/latest", headers=headers)
     if data and 'tag_name' in data:
         tag_name = data["tag_name"]
-        return tag_name[1:] if tag_name.startswith("v") else tag_name
+        if tag_name.startswith("v"):
+            return tag_name[1:]
+        return extract_semantic_version(tag_name) or tag_name
     return None
 
 @lru_cache(maxsize=128)
@@ -26,5 +28,7 @@ def get_github_latest_tag(repo):
     data = http_get(f"https://api.github.com/repos/{repo}/tags", headers=headers)
     if data and isinstance(data, list) and data:
         latest_tag = data[0]["name"]
-        return latest_tag[1:] if latest_tag.startswith("v") else latest_tag
+        if latest_tag.startswith("v"):
+            return latest_tag[1:]
+        return extract_semantic_version(latest_tag) or latest_tag
     return None
