@@ -325,9 +325,11 @@ class VersionManager:
         # Get latest version based on check_latest method
         if check_latest == "github_release" or check_latest == "github_tag":
             if github_repo and github_repo.strip():
-                # Special case for Konnected - use YAML project_version instead of GitHub tags
+                # Special case for Konnected/AirGradient - use YAML project_version instead of GitHub tags
                 if app_name == "konnected":
                     latest_version = get_konnected_version("latest", None, github_repo)
+                elif app_name == "airgradient":
+                    latest_version = get_airgradient_version("latest", None, github_repo)
                 else:
                     latest_version = self._get_github_version_for_app(
                         app_name, github_repo, check_latest

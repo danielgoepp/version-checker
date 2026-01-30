@@ -90,13 +90,11 @@ def get_airgradient_version(instance, url=None, github_repo=None):
         print_error(instance, "No GitHub repository configured")
         return None
 
-    # This would need to be customized based on how AirGradient stores version info
-    # For now, using a similar pattern to Konnected but pointing to AirGradient files
-    github_url = f"https://raw.githubusercontent.com/{github_repo}/main/airgradient.yaml"
+    github_url = f"https://raw.githubusercontent.com/{github_repo}/main/packages/airgradient_esp32-c3_board.yaml"
     yaml_content = http_get(github_url)
     if yaml_content and isinstance(yaml_content, str):
         for line in yaml_content.split('\n'):
-            if line.strip().startswith('project_version:'):
+            if line.strip().startswith('config_version:'):
                 version = line.split(':', 1)[1].strip().strip('"\'')
                 print_version(instance, version)
                 return version
