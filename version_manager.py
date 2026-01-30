@@ -64,6 +64,7 @@ from src.checkers.unifi_os import get_unifi_os_nvr_latest_version, get_unifi_os_
 from src.checkers.samba import get_samba_version, get_latest_samba_version
 from src.checkers.syncthing import check_syncthing_current_version
 from src.checkers.awx import check_awx_current_version
+from src.checkers.graylog_compat import get_opensearch_compatible_version
 from src.checkers.postfix import get_postfix_latest_version_from_dockerhub
 from src.checkers.dockerhub import (
     get_dockerhub_latest_version,
@@ -353,6 +354,8 @@ class VersionManager:
         elif check_latest == "unifi_os_nvr_rss":
             # Special case for UniFi OS NVR/UNVR using RSS feed
             latest_version = get_unifi_os_nvr_latest_version()
+        elif check_latest == "graylog_compat":
+            latest_version = get_opensearch_compatible_version()
         elif check_latest == "helm_chart":
             # Special case for MongoDB operator using Helm chart version
             if app_name == "mongodb":

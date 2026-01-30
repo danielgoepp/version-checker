@@ -111,7 +111,7 @@ def get_opensearch_version(instance, context=None, namespace=None):
     """Get OpenSearch version from Kubernetes pod API"""
     checker = PodAPIChecker(instance, namespace=namespace or "opensearch", context=context)
     return checker.get_version_from_pod_api(
-        "opensearch2-cluster-master-0",
+        "opensearch-prod-master-0",
         "curl -s http://localhost:9200",
         "version.number"
     )
