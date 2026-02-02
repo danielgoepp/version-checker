@@ -15,6 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 from src.checkers.github import get_github_latest_version, get_github_latest_tag
 from src.checkers.home_assistant import get_home_assistant_version
 from src.checkers.esphome import get_esphome_version
+from src.checkers.music_assistant import get_music_assistant_version
 from src.checkers.konnected import get_konnected_version, get_konnected_current_version
 from src.checkers.airgradient import (
     get_airgradient_version,
@@ -470,6 +471,9 @@ class VersionManager:
                     current_version = get_open_webui_version(instance, url)
             elif app_name == "uptime-kuma":
                 current_version = get_uptime_kuma_api_version(instance, url)
+            elif app_name == "music-assistant":
+                if url:
+                    current_version = get_music_assistant_version(instance, url)
             # Add more API-based applications here as needed
 
         elif check_current == "ssh":
