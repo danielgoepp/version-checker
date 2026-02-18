@@ -82,6 +82,7 @@ from src.checkers.ollama import get_ollama_version
 from src.checkers.docker import get_docker_version
 from src.checkers.portainer import get_portainer_version
 from src.checkers.open_webui import get_open_webui_version
+from src.checkers.vault import get_vault_version
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
@@ -474,6 +475,9 @@ class VersionManager:
             elif app_name == "music-assistant":
                 if url:
                     current_version = get_music_assistant_version(instance, url)
+            elif app_name == "vault":
+                if url:
+                    current_version = get_vault_version(instance, url)
             # Add more API-based applications here as needed
 
         elif check_current == "ssh":

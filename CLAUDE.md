@@ -122,6 +122,7 @@ The system uses two separate columns for version checking:
 - **PostgreSQL**: `PostgreSQL 17.2 (Debian...)` → `17.2` (SQL query parsing)
 - **CloudNativePG**: `ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0` → `1.25.0` (container image tag)
 - **Grafana**: `{"version":"12.0.2",...}` → `12.0.2` (internal health API JSON parsing)
+- **Vault**: `{"version":"1.18.4",...}` → `1.18.4` (sys/health API JSON parsing)
 
 ### MQTT Version Discovery
 - **Topic pattern**: `{instance}/bridge/info`
