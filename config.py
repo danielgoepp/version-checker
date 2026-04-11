@@ -59,9 +59,6 @@ if graylog_prod_token:
 GRAYLOG_USERNAME = get_optional_env('GRAYLOG_USERNAME', None, 'Graylog username for basic auth')
 GRAYLOG_PASSWORD = get_optional_env('GRAYLOG_PASSWORD', None, 'Graylog password for basic auth')
 
-# Excel file path - with default fallback
-EXCEL_FILE_PATH = get_optional_env('EXCEL_FILE_PATH', 'Goepp Homelab Master.xlsx', 'Path to the Excel database file')
-
 # UniFi Protect credentials - OPTIONAL (for version checking)
 UNIFI_PROTECT_API_KEY = get_optional_env('UNIFI_PROTECT_API_KEY', None, 'UniFi Protect API key for authentication')
 
@@ -88,3 +85,6 @@ UPTIME_KUMA_PASSWORD = get_optional_env('UPTIME_KUMA_PASSWORD', None, 'Uptime Ku
 
 # GitHub API credentials - OPTIONAL (for rate limit avoidance)
 GITHUB_API_TOKEN = get_optional_env('GITHUB_TOKEN', None, 'GitHub personal access token for API rate limit avoidance')
+
+# Obsidian vault folder containing Software notes
+OBSIDIAN_VAULT_FOLDER = get_optional_env('OBSIDIAN_VAULT_FOLDER', '/Users/dang/Documents/Goeppedia/Software', 'Path to Obsidian Software vault folder')
