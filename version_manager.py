@@ -88,7 +88,7 @@ from src.checkers.vault import get_vault_version
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
-from src.checkers.upgrade import trigger_awx_upgrade, AWX_UPGRADE_METHODS
+from src.checkers.upgrade import trigger_awx_upgrade, update_manifest_version, git_commit_push_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS
 import config
 
 
@@ -818,7 +818,13 @@ class VersionManager:
         print(f"\nTotal: {len(updates)} applications")
 
     def upgrade_application(self, app_name: str, dry_run: bool = False):
-        """Trigger an upgrade for matching notes of an application via AWX."""
+        """Upgrade matching application notes.
+
+        - version_pin 'latest': trigger AWX job directly (no manifest change).
+        - version_pin 'pinned': update the k3s manifest file with the new version,
+          then trigger AWX if the upgrade method supports it.
+        - All other version_pin values (e.g. channel pins): skipped.
+        """
         matching = self.find_application_rows_by_name(app_name)
 
         if not matching:
@@ -826,6 +832,7 @@ class VersionManager:
             return
 
         launched = 0
+        manifests_updated = 0
         skipped = 0
 
         for idx in matching:
@@ -836,33 +843,75 @@ class VersionManager:
             status = app_data.get("Status", "") or ""
             label = f"{app_name} ({instance})"
 
-            if version_pin != "latest":
-                print(f"  Skipping {label}: version_pin is '{version_pin}', not 'latest'")
-                skipped += 1
-                continue
-
-            if upgrade_method not in AWX_UPGRADE_METHODS:
-                print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
-                skipped += 1
-                continue
-
             if status == "Up to Date":
                 print(f"  Skipping {label}: already up to date")
                 skipped += 1
                 continue
 
-            print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-            success = trigger_awx_upgrade(app_name, instance, dry_run=dry_run)
-            if success:
-                launched += 1
-            else:
-                skipped += 1
+            # --- latest: existing AWX-only path ---
+            if version_pin == "latest":
+                if upgrade_method not in AWX_UPGRADE_METHODS:
+                    print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
+                    skipped += 1
+                    continue
+                print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
+                success = trigger_awx_upgrade(app_name, instance, dry_run=dry_run)
+                if success:
+                    launched += 1
+                else:
+                    skipped += 1
+                continue
+
+            # --- pinned: update manifest, then optionally trigger AWX ---
+            if version_pin == "pinned":
+                if upgrade_method not in MANIFEST_UPGRADE_METHODS:
+                    print(f"  Skipping {label}: upgrade method '{upgrade_method}' does not support manifest updates")
+                    skipped += 1
+                    continue
+
+                current_version = app_data.get("Current_Version", "") or ""
+                latest_version = app_data.get("Latest_Version", "") or ""
+                manifest_rel = f"{app_name}/manifests/{app_name}-{instance}.yaml"
+
+                print(f"  Updating manifest for {label}...")
+                manifest_ok = update_manifest_version(
+                    manifest_rel, current_version, latest_version, dry_run=dry_run
+                )
+                if not manifest_ok:
+                    skipped += 1
+                    continue
+
+                print(f"  Committing and pushing manifest for {label}...")
+                push_ok = git_commit_push_manifest(
+                    manifest_rel, app_name, latest_version, dry_run=dry_run
+                )
+                if not push_ok:
+                    skipped += 1
+                    continue
+
+                manifests_updated += 1
+
+                # Trigger AWX after a successful push; pass instance as target_instance
+                # so multi-instance playbooks can filter to the right one
+                if upgrade_method in AWX_UPGRADE_METHODS:
+                    print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
+                    success = trigger_awx_upgrade(
+                        app_name, instance, target_instance=instance, dry_run=dry_run
+                    )
+                    if success:
+                        launched += 1
+                    else:
+                        skipped += 1
+                continue
+
+            print(f"  Skipping {label}: version_pin '{version_pin}' not handled by --upgrade")
+            skipped += 1
 
         print()
         if dry_run:
-            print(f"[DRY RUN] Would have launched {launched} AWX job(s), skipped {skipped}")
+            print(f"[DRY RUN] Would have updated {manifests_updated} manifest(s), launched {launched} AWX job(s), skipped {skipped}")
         else:
-            print(f"Launched {launched} AWX job(s), skipped {skipped}")
+            print(f"Updated {manifests_updated} manifest(s), launched {launched} AWX job(s), skipped {skipped}")
 
 
 if __name__ == "__main__":

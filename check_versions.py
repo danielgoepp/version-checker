@@ -41,7 +41,11 @@ def main():
         "--upgrade",
         type=str,
         metavar="APP_NAME",
-        help="Trigger an AWX upgrade job for a specific application",
+        help=(
+            "Upgrade a specific application. "
+            "For version_pin='latest': triggers an AWX job directly. "
+            "For version_pin='pinned': updates the k3s manifest file first, then triggers AWX."
+        ),
     )
     parser.add_argument(
         "--dry-run",

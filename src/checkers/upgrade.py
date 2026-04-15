@@ -1,3 +1,6 @@
+import re
+import subprocess
+from pathlib import Path
 import requests
 import config
 from .utils import print_error
@@ -8,9 +11,19 @@ AWX_UPGRADE_TEMPLATE_ID = 32
 # Upgrade methods that trigger an AWX job
 AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest"}
 
+# Upgrade methods that support manifest-based pinned version updates
+MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
 
-def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> bool:
+
+def trigger_awx_upgrade(app_name: str, instance: str, target_instance: str = "", dry_run: bool = False) -> bool:
     """Trigger an AWX job template to upgrade an application.
+
+    Args:
+        app_name: Application name (matches k3s_applications key).
+        instance: Version-checker instance label (used for error messages).
+        target_instance: AWX instance name for multi-instance deployments.
+                         Passed as extra var so the playbook can filter to one instance.
+        dry_run: If True, print what would happen without calling AWX.
 
     Returns True if the job was launched (or would be in dry-run), False on failure.
     """
@@ -20,7 +33,10 @@ def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> 
         return False
 
     url = f"{AWX_BASE_URL}/api/v2/job_templates/{AWX_UPGRADE_TEMPLATE_ID}/launch/"
-    payload = {"extra_vars": {"app_name": app_name}}
+    extra_vars: dict = {"app_name": app_name}
+    if target_instance:
+        extra_vars["target_instance"] = target_instance
+    payload = {"extra_vars": extra_vars}
     headers = {
         "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json",
@@ -47,3 +63,92 @@ def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> 
     except requests.RequestException as e:
         print_error(instance, f"AWX request failed: {e}")
         return False
+
+
+def update_manifest_version(
+    manifest_rel_path: str, current_version: str, latest_version: str, dry_run: bool = False
+) -> bool:
+    """Update a pinned version tag in a Kubernetes manifest file.
+
+    Searches for the current version string (and the 'v'-prefixed form) and
+    replaces it with the latest version.  Any suffix after the version (e.g.
+    '-ubuntu') and any 'v' prefix are preserved automatically.
+
+    Args:
+        manifest_rel_path: Path relative to K3S_CONFIG_FOLDER (e.g. 'grafana/manifests/grafana-prod.yaml').
+        current_version: Version currently in the manifest (e.g. '12.1.1').
+        latest_version:  Version to upgrade to (e.g. '13.0.0').
+        dry_run: If True, print what would change without writing.
+
+    Returns:
+        True if the version was found and updated (or would be in dry-run), False otherwise.
+    """
+    manifest_path = Path(config.K3S_CONFIG_FOLDER) / manifest_rel_path
+
+    if not manifest_path.exists():
+        print(f"  Manifest not found: {manifest_path}")
+        return False
+
+    if not current_version or not latest_version:
+        print(f"  Cannot update manifest: current or latest version is unknown")
+        return False
+
+    content = manifest_path.read_text(encoding="utf-8")
+
+    # Try v-prefixed form first, then plain version
+    if f"v{current_version}" in content:
+        find_str = f"v{current_version}"
+        replace_str = f"v{latest_version}"
+    elif current_version in content:
+        find_str = current_version
+        replace_str = latest_version
+    else:
+        print(f"  Version '{current_version}' not found in {manifest_rel_path}")
+        return False
+
+    updated = content.replace(find_str, replace_str)
+
+    if dry_run:
+        print(f"  [DRY RUN] Would update {manifest_rel_path}: '{find_str}' → '{replace_str}'")
+        return True
+
+    manifest_path.write_text(updated, encoding="utf-8")
+    print(f"  Updated {manifest_rel_path}: '{find_str}' → '{replace_str}'")
+    return True
+
+
+def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_version: str, dry_run: bool = False) -> bool:
+    """Git add, commit, and push a single manifest file change in the k3s-config repo.
+
+    Returns True on success, False on failure.
+    """
+    repo_path = Path(config.K3S_CONFIG_FOLDER)
+    manifest_full = str(repo_path / manifest_rel_path)
+    commit_msg = f"Update {app_name} to {latest_version}"
+
+    steps = [
+        (["git", "-C", str(repo_path), "add", manifest_full], "git add"),
+        (["git", "-C", str(repo_path), "commit", "-m", commit_msg], "git commit"),
+        (["git", "-C", str(repo_path), "push"], "git push"),
+    ]
+
+    if dry_run:
+        for cmd, label in steps:
+            print(f"  [DRY RUN] Would run: {' '.join(cmd)}")
+        return True
+
+    for cmd, label in steps:
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                print(f"  {label} failed: {result.stderr.strip()}")
+                return False
+        except subprocess.TimeoutExpired:
+            print(f"  {label} timed out")
+            return False
+        except FileNotFoundError:
+            print(f"  git not found in PATH")
+            return False
+
+    print(f"  Committed and pushed: {commit_msg}")
+    return True

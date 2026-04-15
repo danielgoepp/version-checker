@@ -88,3 +88,6 @@ GITHUB_API_TOKEN = get_optional_env('GITHUB_TOKEN', None, 'GitHub personal acces
 
 # Obsidian vault folder containing Software notes
 OBSIDIAN_VAULT_FOLDER = get_optional_env('OBSIDIAN_VAULT_FOLDER', '/Users/dang/Documents/Goeppedia/Software', 'Path to Obsidian Software vault folder')
+
+# k3s-config repository root (for manifest-based upgrades)
+K3S_CONFIG_FOLDER = get_optional_env('K3S_CONFIG_FOLDER', '/Users/dang/Documents/Development/k3s-config', 'Path to k3s-config repository root')

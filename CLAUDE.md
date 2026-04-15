@@ -31,9 +31,9 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `instance` | `Instance` | Instance name (e.g., prod, morgspi) |
 | `type` | `Type` | Application type |
 | `category` | `Category` | Category grouping |
-| `version_pin` | `Version_Pin` | Pin to specific channel (e.g., "beta") |
-| `upgrade` | `Upgrade` | Upgrade notes/flags |
-| `awx` | `AWX` | AWX job reference |
+| `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
+| `upgrade` | `Upgrade` | Upgrade method (e.g. `ansible-manifest`, `ansible-helm`, `ansible-apt`) |
+| `awx` | `AWX` | Whether to trigger AWX after a manifest update (`true`/`false`) |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
 | `key` | `Key` | Unique identifier or API key |
 | `github` | `GitHub` | GitHub repo path (owner/repo) |
@@ -154,6 +154,7 @@ The system uses two separate fields for version checking:
 - **Home Assistant**: `config.HA_TOKENS` dictionary by instance
 - **OPNsense**: `config.OPNSENSE_API_KEY`, `config.OPNSENSE_API_SECRET`
 - **AWX**: `config.AWX_API_TOKENS` dict by instance (env: `AWX_API_TOKEN_PROD`, etc.)
+- **k3s-config**: `config.K3S_CONFIG_FOLDER` (env: `K3S_CONFIG_FOLDER`, default: `/Users/dang/Documents/Development/k3s-config`) — root of the k3s manifest repository used for pinned-version upgrades
 - **GitHub API**: `config.GITHUB_API_TOKEN` for rate limit avoidance (60/hour unauthenticated vs 5,000/hour authenticated)
 - **Tailscale**: `config.TAILSCALE_API_KEY`, `config.TAILSCALE_TAILNET`
 - **Graylog**: `config.GRAYLOG_TOKENS` dict by instance, `config.GRAYLOG_USERNAME`/`config.GRAYLOG_PASSWORD`
@@ -223,6 +224,15 @@ The system uses two separate fields for version checking:
 
 # Use a custom vault folder
 ./check_versions.py --vault /path/to/vault/Software --check-all
+
+# Upgrade an application
+# - version_pin='latest': triggers AWX job directly
+# - version_pin='pinned': updates k3s manifest, then triggers AWX (if awx: true)
+./check_versions.py --upgrade "grafana"
+./check_versions.py --upgrade "victoriametrics"
+
+# Dry-run upgrade (shows what would change without modifying anything)
+./check_versions.py --upgrade "grafana" --dry-run
 ```
 
 ## Development Patterns
