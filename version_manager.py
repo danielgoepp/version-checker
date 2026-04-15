@@ -88,6 +88,7 @@ from src.checkers.vault import get_vault_version
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
+from src.checkers.upgrade import trigger_awx_upgrade, AWX_UPGRADE_METHODS
 import config
 
 
@@ -815,6 +816,54 @@ class VersionManager:
             )
 
         print(f"\nTotal: {len(updates)} applications")
+
+    def upgrade_application(self, app_name: str, dry_run: bool = False):
+        """Trigger an upgrade for matching notes of an application via AWX."""
+        matching = self.find_application_rows_by_name(app_name)
+
+        if not matching:
+            print(f"Application '{app_name}' not found")
+            return
+
+        launched = 0
+        skipped = 0
+
+        for idx in matching:
+            app_data = self.get_row_data(idx)
+            instance = app_data.get("Instance", "prod")
+            version_pin = app_data.get("Version_Pin", "") or ""
+            upgrade_method = app_data.get("Upgrade", "") or ""
+            status = app_data.get("Status", "") or ""
+            label = f"{app_name} ({instance})"
+
+            if version_pin != "latest":
+                print(f"  Skipping {label}: version_pin is '{version_pin}', not 'latest'")
+                skipped += 1
+                continue
+
+            if upgrade_method not in AWX_UPGRADE_METHODS:
+                print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
+                skipped += 1
+                continue
+
+            if status == "Up to Date":
+                print(f"  Skipping {label}: already up to date")
+                skipped += 1
+                continue
+
+            print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
+            success = trigger_awx_upgrade(app_name, instance, dry_run=dry_run)
+            if success:
+                launched += 1
+            else:
+                skipped += 1
+
+        print()
+        if dry_run:
+            print(f"[DRY RUN] Would have launched {launched} AWX job(s), skipped {skipped}")
+        else:
+            print(f"Launched {launched} AWX job(s), skipped {skipped}")
+
 
 if __name__ == "__main__":
     print("Use check_versions.py to interact with the version checker.")

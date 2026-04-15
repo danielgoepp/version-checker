@@ -37,6 +37,17 @@ def main():
         default=10,
         help="Maximum concurrent workers for --check-all (default: 10)",
     )
+    parser.add_argument(
+        "--upgrade",
+        type=str,
+        metavar="APP_NAME",
+        help="Trigger an AWX upgrade job for a specific application",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without making any changes (use with --upgrade)",
+    )
 
     args = parser.parse_args()
 
@@ -66,6 +77,13 @@ def main():
 
         for idx in matching:
             vm.check_single_application(idx)
+    elif args.upgrade:
+        if args.dry_run:
+            print(f"[DRY RUN] Upgrade requested for '{args.upgrade}'")
+        else:
+            print(f"Upgrade requested for '{args.upgrade}'")
+        print()
+        vm.upgrade_application(args.upgrade, dry_run=args.dry_run)
     else:
         parser.print_help()
 
