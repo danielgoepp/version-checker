@@ -1,10 +1,10 @@
 # Goepp Homelab Version Manager
 
-A comprehensive Python-based system for tracking software versions across your infrastructure using Excel for data management.
+A comprehensive Python-based system for tracking software versions across your infrastructure using Obsidian vault markdown notes for data management.
 
 ## Features
 
-- **Excel Integration**: Uses Excel database with Name/Instance structure for data management
+- **Obsidian Integration**: Uses Obsidian vault markdown notes with YAML frontmatter for data management
 - **Multi-Instance Support**: Track multiple instances of the same application across environments
 - **Modular Architecture**: Base classes (KubernetesChecker, APIChecker) for efficient code reuse
 - **Dual Check Method Architecture**:
@@ -35,12 +35,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Update Excel file structure (if needed):
-```bash
-python3 update_excel.py
-```
-
-4. Update config.py with your credentials (based on existing pattern)
+3. Update config.py with your credentials (based on existing pattern)
 
 ## Usage
 
@@ -75,25 +70,25 @@ Run `./check_versions.py` without arguments for menu-driven interface:
 - Show all applications
 - Show updates only
 
-## Excel Structure
+## Obsidian Note Structure
 
-The Excel file uses a single sheet with the following columns:
+Each application is stored as a `.md` file in the Obsidian vault with YAML frontmatter fields:
 
-- **Name**: Application name (Home Assistant, Kopia, etc.)
-- **Enabled**: Boolean field to enable/disable checking (skips disabled apps for efficiency)
-- **Instance**: Specific instance (ssd, hdd, b2, prod, etc.)
-- **Type**: Application type/category
-- **Category**: Infrastructure category (set automatically for servers)
-- **Target**: Connection endpoint (URLs, hostnames, etc.)
-- **GitHub**: GitHub repository path (owner/repo format)
-- **DockerHub**: Docker Hub repository path (org/image format)
-- **Current_Version**: Currently running version
-- **Latest_Version**: Latest available version
-- **Status**: Up to Date, Update Available, etc.
-- **Last_Checked**: Timestamp of last check
-- **Check_Current**: How current versions are retrieved (api, ssh, kubectl, etc.)
-- **Check_Latest**: How latest versions are retrieved (github_release, docker_hub, etc.)
-- **Key**: Unique identifier for each application instance
+- **`name`**: Application name (home-assistant, kopia, etc.)
+- **`enabled`**: Boolean field to enable/disable checking (skips disabled apps for efficiency)
+- **`instance`**: Specific instance (ssd, hdd, b2, prod, etc.)
+- **`type`**: Application type/category
+- **`category`**: Infrastructure category
+- **`target`**: Full URL connection endpoint (`https://hostname:port`)
+- **`github`**: GitHub repository path (owner/repo format)
+- **`dockerhub`**: Docker Hub repository path (org/image format)
+- **`current_version`**: Currently running version
+- **`latest_version`**: Latest available version
+- **`status`**: Up to Date, Update Available, etc.
+- **`last_checked`**: Timestamp of last check
+- **`check_current`**: How current versions are retrieved (api, ssh, kubectl, etc.)
+- **`check_latest`**: How latest versions are retrieved (github_release, docker_hub, etc.)
+- **`key`**: Unique identifier or API key for the application instance
 
 ## Supported Check Methods
 
@@ -128,7 +123,7 @@ The Excel file uses a single sheet with the following columns:
 
 ### Multi-Instance Support
 Applications that run across multiple environments are tracked separately by instance:
-- Each instance gets its own row in the Excel file with individual version tracking
+- Each instance gets its own markdown note file with individual version tracking
 - Supports various instance types (production, staging, node-specific, environment-specific)
 - Instance names are configurable and can represent servers, environments, or components
 
@@ -141,11 +136,9 @@ Applications that run across multiple environments are tracked separately by ins
 
 ## Files in Project
 
-- **`Goepp Homelab Master.xlsx`** - Excel database with Name/Instance structure for tracking
 - **`version_manager.py`** - Core Python class handling all version checking logic with concurrent execution
 - **`check_versions.py`** - Command-line interface with multi-instance support
-- **`update_excel.py`** - Script to update Excel structure while preserving data
-- **`requirements.txt`** - Python dependencies (openpyxl, requests, paho-mqtt, PyYAML)
+- **`requirements.txt`** - Python dependencies (requests, paho-mqtt, PyYAML)
 - **`config.py`** - Configuration and credentials (not committed to git)
 - **`src/checkers/`** - Directory containing modular version checker modules
   - **`base.py`** - Base classes (KubernetesChecker, APIChecker) with secure subprocess handling
