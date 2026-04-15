@@ -9,15 +9,14 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
 from version_manager import VersionManager
-from config import EXCEL_FILE_PATH
 
 
 def main():
     parser = argparse.ArgumentParser(description="Goepp Homelab Version Manager")
     parser.add_argument(
-        "--excel",
-        default=EXCEL_FILE_PATH,
-        help=f"Path to Excel file (default: {EXCEL_FILE_PATH})",
+        "--vault",
+        default=None,
+        help="Path to Obsidian Software vault folder (default: from config)",
     )
     parser.add_argument(
         "--check-all", action="store_true", help="Check all applications and exit"
@@ -38,13 +37,24 @@ def main():
         default=10,
         help="Maximum concurrent workers for --check-all (default: 10)",
     )
+    parser.add_argument(
+        "--upgrade",
+        type=str,
+        metavar="APP_NAME",
+        help="Trigger an AWX upgrade job for a specific application",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without making any changes (use with --upgrade)",
+    )
 
     args = parser.parse_args()
 
-    vm = VersionManager(args.excel)
+    vm = VersionManager(args.vault)
 
-    if vm.workbook is None:
-        print("Failed to load Excel file. Check file path and permissions.")
+    if not vm.notes:
+        print("Failed to load vault notes. Check vault path and permissions.")
         sys.exit(1)
 
     if args.check_all:
@@ -56,25 +66,26 @@ def main():
     elif args.updates:
         vm.show_updates()
     elif args.app:
-        # Find application by name using VersionManager methods
-        matching_rows = vm.find_application_rows_by_name(args.app)
+        matching = vm.find_application_rows_by_name(args.app)
 
-        if not matching_rows:
+        if not matching:
             print(f"Application '{args.app}' not found")
             print("Available applications:")
             for name in vm.get_all_application_names():
                 print(f"  {name}")
             sys.exit(1)
 
-        # Check all matching instances
-        for row_num in matching_rows:
-            vm.check_single_application(row_num)
-        vm.save_workbook()
+        for idx in matching:
+            vm.check_single_application(idx)
+    elif args.upgrade:
+        if args.dry_run:
+            print(f"[DRY RUN] Upgrade requested for '{args.upgrade}'")
+        else:
+            print(f"Upgrade requested for '{args.upgrade}'")
+        print()
+        vm.upgrade_application(args.upgrade, dry_run=args.dry_run)
     else:
-        # Interactive mode
-        from version_manager import main as interactive_main
-
-        interactive_main()
+        parser.print_help()
 
 
 if __name__ == "__main__":
