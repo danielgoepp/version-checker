@@ -840,6 +840,7 @@ class VersionManager:
             instance = app_data.get("Instance", "prod")
             version_pin = app_data.get("Version_Pin", "") or ""
             upgrade_method = app_data.get("Upgrade", "") or ""
+            awx_enabled = app_data.get("AWX") is True
             status = app_data.get("Status", "") or ""
             label = f"{app_name} ({instance})"
 
@@ -848,10 +849,14 @@ class VersionManager:
                 skipped += 1
                 continue
 
-            # --- latest: existing AWX-only path ---
+            # --- latest: AWX-only path ---
             if version_pin == "latest":
                 if upgrade_method not in AWX_UPGRADE_METHODS:
                     print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
+                    skipped += 1
+                    continue
+                if not awx_enabled:
+                    print(f"  Skipping {label}: awx is disabled for this application")
                     skipped += 1
                     continue
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
@@ -891,9 +896,9 @@ class VersionManager:
 
                 manifests_updated += 1
 
-                # Trigger AWX after a successful push; pass instance as target_instance
-                # so multi-instance playbooks can filter to the right one
-                if upgrade_method in AWX_UPGRADE_METHODS:
+                # Trigger AWX after a successful push only if awx is enabled; pass
+                # instance as target_instance so multi-instance playbooks can filter.
+                if awx_enabled and upgrade_method in AWX_UPGRADE_METHODS:
                     print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
                     success = trigger_awx_upgrade(
                         app_name, instance, target_instance=instance, dry_run=dry_run
