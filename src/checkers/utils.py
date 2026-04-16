@@ -20,8 +20,8 @@ def print_error(instance, message):
 
 
 def print_version(instance, version):
-    """Standardized version printing"""
-    print(f"  {instance}: {version}")
+    """No-op: version output is handled by check_single_application."""
+    pass
 
 
 def handle_timeout_error(instance, operation="operation"):
