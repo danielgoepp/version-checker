@@ -120,35 +120,60 @@ def update_manifest_version(
 def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_version: str, dry_run: bool = False) -> bool:
     """Git add, commit, and push a single manifest file change in the k3s-config repo.
 
-    Returns True on success, False on failure.
+    Returns True on success (including when nothing needed committing), False on failure.
     """
     repo_path = Path(config.K3S_CONFIG_FOLDER)
     manifest_full = str(repo_path / manifest_rel_path)
     commit_msg = f"Update {app_name} to {latest_version}"
 
-    steps = [
-        (["git", "-C", str(repo_path), "add", manifest_full], "git add"),
-        (["git", "-C", str(repo_path), "commit", "-m", commit_msg], "git commit"),
-        (["git", "-C", str(repo_path), "push"], "git push"),
-    ]
-
     if dry_run:
-        for cmd, label in steps:
+        for cmd, label in [
+            (["git", "-C", str(repo_path), "add", manifest_full], "git add"),
+            (["git", "-C", str(repo_path), "commit", "-m", commit_msg], "git commit"),
+            (["git", "-C", str(repo_path), "push"], "git push"),
+        ]:
             print(f"  [DRY RUN] Would run: {' '.join(cmd)}")
         return True
 
-    for cmd, label in steps:
+    def run_git(cmd: list, label: str) -> subprocess.CompletedProcess | None:
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode != 0:
-                print(f"  {label} failed: {result.stderr.strip()}")
-                return False
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         except subprocess.TimeoutExpired:
             print(f"  {label} timed out")
-            return False
+            return None
         except FileNotFoundError:
             print(f"  git not found in PATH")
-            return False
+            return None
+
+    # Stage the file
+    result = run_git(["git", "-C", str(repo_path), "add", manifest_full], "git add")
+    if result is None:
+        return False
+    if result.returncode != 0:
+        print(f"  git add failed: {(result.stderr or result.stdout).strip()}")
+        return False
+
+    # Check if there's anything staged; if not, manifest already matches HEAD
+    check = run_git(["git", "-C", str(repo_path), "diff", "--cached", "--quiet"], "git diff --cached")
+    if check is not None and check.returncode == 0:
+        print(f"  Manifest already at {latest_version} in git — no commit needed")
+        return True
+
+    # Commit
+    result = run_git(["git", "-C", str(repo_path), "commit", "-m", commit_msg], "git commit")
+    if result is None:
+        return False
+    if result.returncode != 0:
+        print(f"  git commit failed: {(result.stderr or result.stdout).strip()}")
+        return False
+
+    # Push
+    result = run_git(["git", "-C", str(repo_path), "push"], "git push")
+    if result is None:
+        return False
+    if result.returncode != 0:
+        print(f"  git push failed: {(result.stderr or result.stdout).strip()}")
+        return False
 
     print(f"  Committed and pushed: {commit_msg}")
     return True
