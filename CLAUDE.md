@@ -216,23 +216,29 @@ The system uses two separate fields for version checking:
 ./check_versions.py --updates
 
 # Check specific application (all instances)
-./check_versions.py --app "home-assistant"
+./check_versions.py --app "homeassistant"
 ./check_versions.py --app "kopia"
 ./check_versions.py --app "cnpg"
 ./check_versions.py --app "grafana"
 ./check_versions.py --app "vault"
 
+# Check specific application, specific instance
+./check_versions.py --app "homeassistant" --instance prod
+
 # Use a custom vault folder
 ./check_versions.py --vault /path/to/vault/Software --check-all
 
-# Upgrade an application
+# Upgrade an application (use --app with --upgrade flag)
 # - version_pin='latest': triggers AWX job directly
 # - version_pin='pinned': updates k3s manifest, then triggers AWX (if awx: true)
-./check_versions.py --upgrade "grafana"
-./check_versions.py --upgrade "victoriametrics"
+./check_versions.py --app "grafana" --upgrade
+./check_versions.py --app "victoriametrics" --upgrade
+
+# Upgrade a specific instance only
+./check_versions.py --app "homeassistant" --instance prod --upgrade
 
 # Dry-run upgrade (shows what would change without modifying anything)
-./check_versions.py --upgrade "grafana" --dry-run
+./check_versions.py --app "grafana" --upgrade --dry-run
 ```
 
 ## Development Patterns

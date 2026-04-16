@@ -39,10 +39,9 @@ def main():
     )
     parser.add_argument(
         "--upgrade",
-        type=str,
-        metavar="APP_NAME",
+        action="store_true",
         help=(
-            "Upgrade a specific application. "
+            "Upgrade the application specified by --app. "
             "For version_pin='latest': triggers an AWX job directly. "
             "For version_pin='pinned': updates the k3s manifest file first, then triggers AWX."
         ),
@@ -51,12 +50,12 @@ def main():
         "--instance",
         type=str,
         default="",
-        help="Filter to a specific instance (use with --upgrade or --app)",
+        help="Filter to a specific instance (use with --app)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Show what would happen without making any changes (use with --upgrade)",
+        help="Show what would happen without making any changes (use with --app --upgrade)",
     )
 
     args = parser.parse_args()
@@ -76,24 +75,30 @@ def main():
     elif args.updates:
         vm.show_updates()
     elif args.app:
-        matching = vm.find_application_rows_by_name(args.app, instance=args.instance)
-
-        if not matching:
-            print(f"Application '{args.app}' not found")
-            print("Available applications:")
-            for name in vm.get_all_application_names():
-                print(f"  {name}")
-            sys.exit(1)
-
-        for idx in matching:
-            vm.check_single_application(idx)
-    elif args.upgrade:
-        if args.dry_run:
-            print(f"[DRY RUN] Upgrade requested for '{args.upgrade}'" + (f" (instance: {args.instance})" if args.instance else ""))
+        if args.upgrade:
+            label = f"'{args.app}'" + (f" (instance: {args.instance})" if args.instance else "")
+            if args.dry_run:
+                print(f"[DRY RUN] Upgrade requested for {label}")
+            else:
+                print(f"Upgrade requested for {label}")
+            print()
+            vm.upgrade_application(args.app, dry_run=args.dry_run, instance=args.instance)
         else:
-            print(f"Upgrade requested for '{args.upgrade}'" + (f" (instance: {args.instance})" if args.instance else ""))
-        print()
-        vm.upgrade_application(args.upgrade, dry_run=args.dry_run, instance=args.instance)
+            matching = vm.find_application_rows_by_name(args.app, instance=args.instance)
+
+            if not matching:
+                print(f"Application '{args.app}' not found")
+                print("Available applications:")
+                for name in vm.get_all_application_names():
+                    print(f"  {name}")
+                sys.exit(1)
+
+            for idx in matching:
+                vm.check_single_application(idx)
+    elif args.upgrade:
+        print("--upgrade requires --app")
+        parser.print_help()
+        sys.exit(1)
     else:
         parser.print_help()
 
