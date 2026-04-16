@@ -239,6 +239,11 @@ The system uses two separate fields for version checking:
 
 # Dry-run upgrade (shows what would change without modifying anything)
 ./check_versions.py --app "grafana" --upgrade --dry-run
+
+# Force AWX trigger even if already up to date or manifest unchanged
+# For pinned: skips manifest update and goes straight to AWX
+./check_versions.py --app "grafana" --upgrade --force
+./check_versions.py --app "homeassistant" --instance prod --upgrade --force
 ```
 
 ## Development Patterns

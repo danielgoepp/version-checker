@@ -823,7 +823,7 @@ class VersionManager:
 
         print(f"\nTotal: {len(updates)} applications")
 
-    def upgrade_application(self, app_name: str, dry_run: bool = False, instance: str = ""):
+    def upgrade_application(self, app_name: str, dry_run: bool = False, instance: str = "", force: bool = False):
         """Upgrade matching application notes.
 
         - version_pin 'latest': trigger AWX job directly (no manifest change).
@@ -831,6 +831,8 @@ class VersionManager:
           then trigger AWX if the upgrade method supports it.
         - All other version_pin values (e.g. channel pins): skipped.
         - If instance is provided, only that instance is upgraded.
+        - If force is True: skip the 'Up to Date' check; for pinned apps skip
+          the manifest update and go straight to AWX.
         """
         matching = self.find_application_rows_by_name(app_name, instance=instance)
 
@@ -851,7 +853,7 @@ class VersionManager:
             status = app_data.get("Status", "") or ""
             label = f"{app_name} ({instance})"
 
-            if status == "Up to Date":
+            if not force and status == "Up to Date":
                 print(f"  Skipping {label}: already up to date")
                 skipped += 1
                 continue
@@ -874,37 +876,40 @@ class VersionManager:
                     skipped += 1
                 continue
 
-            # --- pinned: update manifest, then optionally trigger AWX ---
+            # --- pinned: update manifest (unless --force), then optionally trigger AWX ---
             if version_pin == "pinned":
                 if upgrade_method not in MANIFEST_UPGRADE_METHODS:
                     print(f"  Skipping {label}: upgrade method '{upgrade_method}' does not support manifest updates")
                     skipped += 1
                     continue
 
-                current_version = app_data.get("Current_Version", "") or ""
-                latest_version = app_data.get("Latest_Version", "") or ""
-                manifest_rel = f"{app_name}/manifests/{app_name}-{instance}.yaml"
+                if not force:
+                    current_version = app_data.get("Current_Version", "") or ""
+                    latest_version = app_data.get("Latest_Version", "") or ""
+                    manifest_rel = f"{app_name}/manifests/{app_name}-{instance}.yaml"
 
-                print(f"  Updating manifest for {label}...")
-                manifest_ok = update_manifest_version(
-                    manifest_rel, current_version, latest_version, dry_run=dry_run
-                )
-                if not manifest_ok:
-                    skipped += 1
-                    continue
+                    print(f"  Updating manifest for {label}...")
+                    manifest_ok = update_manifest_version(
+                        manifest_rel, current_version, latest_version, dry_run=dry_run
+                    )
+                    if not manifest_ok:
+                        skipped += 1
+                        continue
 
-                print(f"  Committing and pushing manifest for {label}...")
-                push_ok = git_commit_push_manifest(
-                    manifest_rel, app_name, latest_version, dry_run=dry_run
-                )
-                if not push_ok:
-                    skipped += 1
-                    continue
+                    print(f"  Committing and pushing manifest for {label}...")
+                    push_ok = git_commit_push_manifest(
+                        manifest_rel, app_name, latest_version, dry_run=dry_run
+                    )
+                    if not push_ok:
+                        skipped += 1
+                        continue
 
-                manifests_updated += 1
+                    manifests_updated += 1
+                else:
+                    print(f"  Skipping manifest update for {label} (--force)")
 
-                # Trigger AWX after a successful push only if awx is enabled; pass
-                # instance as target_instance so multi-instance playbooks can filter.
+                # Trigger AWX only if awx is enabled; pass instance as target_instance
+                # so multi-instance playbooks can filter.
                 if awx_enabled and upgrade_method in AWX_UPGRADE_METHODS:
                     print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
                     success = trigger_awx_upgrade(

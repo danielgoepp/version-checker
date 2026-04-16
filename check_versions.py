@@ -53,6 +53,14 @@ def main():
         help="Filter to a specific instance (use with --app)",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Force AWX trigger even if already up to date or manifest unchanged. "
+            "For version_pin='pinned': skips manifest update and goes straight to AWX."
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what would happen without making any changes (use with --app --upgrade)",
@@ -82,7 +90,7 @@ def main():
             else:
                 print(f"Upgrade requested for {label}")
             print()
-            vm.upgrade_application(args.app, dry_run=args.dry_run, instance=args.instance)
+            vm.upgrade_application(args.app, dry_run=args.dry_run, instance=args.instance, force=args.force)
         else:
             matching = vm.find_application_rows_by_name(args.app, instance=args.instance)
 
