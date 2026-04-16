@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 
 from datetime import datetime
-import io
 import re
 import sys
 import urllib3
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 
 import yaml
 
@@ -161,7 +158,6 @@ class VersionManager:
     def __init__(self, vault_folder=None):
         self.vault_folder = Path(vault_folder) if vault_folder else self.DEFAULT_VAULT_FOLDER
         self.notes = []
-        self._lock = threading.Lock()
         self.load_vault()
 
     def load_vault(self):
@@ -193,16 +189,15 @@ class VersionManager:
         return data
 
     def update_row_data(self, idx: int, updates: dict) -> None:
-        """Update specific fields in a note's frontmatter and write to disk (thread-safe)."""
+        """Update specific fields in a note's frontmatter and write to disk."""
         if idx < 0 or idx >= len(self.notes):
             return
-        with self._lock:
-            fm = self.notes[idx]["frontmatter"]
-            for pascal_key, value in updates.items():
-                yaml_key = FIELD_MAP.get(pascal_key)
-                if yaml_key:
-                    fm[yaml_key] = value if value != "" else None
-            _write_note(self.notes[idx])
+        fm = self.notes[idx]["frontmatter"]
+        for pascal_key, value in updates.items():
+            yaml_key = FIELD_MAP.get(pascal_key)
+            if yaml_key:
+                fm[yaml_key] = value if value != "" else None
+        _write_note(self.notes[idx])
 
     def find_application_row(self, app_name: str, instance: str = "prod") -> int | None:
         """Find the note index for a specific application and instance."""
@@ -582,18 +577,15 @@ class VersionManager:
         print(f"  Status: {icon} {status}")
         print()
 
-    def check_all_applications(self, max_workers=10):
-        """Check versions for all applications concurrently."""
+    def check_all_applications(self):
+        """Check versions for all applications."""
         if not self.notes:
             print("No vault notes loaded")
             return
 
-        print(
-            f"Starting concurrent version check for all applications (max {max_workers} workers)..."
-        )
+        print("Starting version check for all applications...")
         print("=" * 50)
 
-        # Collect indices for enabled applications only
         enabled_indices = []
         skipped = 0
         for idx, note in enumerate(self.notes):
@@ -607,74 +599,12 @@ class VersionManager:
             print(f"Skipping {skipped} disabled applications")
         print(f"Checking {total_apps} enabled applications...")
         print()
-        completed = 0
 
-        _thread_local = threading.local()
-        _real_stdout = sys.stdout
-        _print_lock = threading.Lock()
-
-        class ThreadLocalStdout:
-            def write(self, text):
-                buf = getattr(_thread_local, "buffer", None)
-                if buf is not None:
-                    buf.write(text)
-                else:
-                    _real_stdout.write(text)
-
-            def flush(self):
-                _real_stdout.flush()
-
-        def buffered_check(idx):
-            _thread_local.buffer = io.StringIO()
-            try:
-                self.check_single_application(idx)
-                return _thread_local.buffer.getvalue()
-            finally:
-                _thread_local.buffer = None
-
-        sys.stdout = ThreadLocalStdout()
-
-        try:
-            import asyncio
-            from aioesphomeapi.singleton import _SINGLETON_CACHE
-            async def _prepopulate_timezone():
-                from aioesphomeapi.timezone import get_local_timezone
-                return await get_local_timezone()
-            result = asyncio.run(_prepopulate_timezone())
-            _SINGLETON_CACHE["local_timezone"] = result
-        except Exception:
-            pass
-
-        try:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_idx = {
-                    executor.submit(buffered_check, idx): idx
-                    for idx in enabled_indices
-                }
-
-                for future in as_completed(future_to_idx):
-                    idx = future_to_idx[future]
-                    completed += 1
-                    try:
-                        output = future.result()
-                        if output:
-                            with _print_lock:
-                                _real_stdout.write(output)
-                                if not output.endswith("\n"):
-                                    _real_stdout.write("\n")
-                        if completed % 5 == 0 or completed == total_apps:
-                            with _print_lock:
-                                _real_stdout.write(
-                                    f"Progress: {completed}/{total_apps} applications checked\n"
-                                )
-                    except Exception as e:
-                        with _print_lock:
-                            _real_stdout.write(f"Error checking note {idx}: {e}\n")
-        finally:
-            sys.stdout = _real_stdout
+        for idx in enabled_indices:
+            self.check_single_application(idx)
 
         print("=" * 50)
-        print(f"Version check completed! Checked {total_apps} applications concurrently.")
+        print(f"Version check completed! Checked {total_apps} applications.")
 
     def show_summary(self):
         """Display a summary of version status (enabled applications only)."""

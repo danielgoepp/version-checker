@@ -15,7 +15,6 @@ A comprehensive Python-based system for tracking software versions across your i
 - **Automated Tracking**: Tracks current vs latest versions with timestamps
 - **Performance Optimizations**:
   - API caching for GitHub and Docker Hub requests (~383,000x speedup on repeated calls)
-  - Concurrent version checking using ThreadPoolExecutor
   - Efficient kubectl JSON parsing instead of shell pipes
 - **Security Hardening**: No shell=True in subprocess calls - all commands use list-based construction
 - **Selective Checking**: Enable/disable field to skip applications without removing from vault
@@ -44,9 +43,6 @@ pip install -r requirements.txt
 ```bash
 # Check all applications and instances
 ./check_versions.py --check-all
-
-# Check all with custom concurrent worker count
-./check_versions.py --check-all --workers 20
 
 # Show summary with status icons
 ./check_versions.py --summary
@@ -147,7 +143,7 @@ Applications that run across multiple environments are tracked separately by ins
 
 ## Files in Project
 
-- **`version_manager.py`** - Core Python class handling all version checking logic with concurrent execution
+- **`version_manager.py`** - Core Python class handling all version checking logic
 - **`check_versions.py`** - Command-line interface with multi-instance support
 - **`requirements.txt`** - Python dependencies (requests, paho-mqtt, PyYAML)
 - **`config.py`** - Configuration and credentials (not committed to git)

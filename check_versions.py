@@ -32,12 +32,6 @@ def main():
     )
     parser.add_argument("--app", type=str, help="Check specific application by name")
     parser.add_argument(
-        "--workers",
-        type=int,
-        default=10,
-        help="Maximum concurrent workers for --check-all (default: 10)",
-    )
-    parser.add_argument(
         "--upgrade",
         action="store_true",
         help=(
@@ -75,7 +69,7 @@ def main():
         sys.exit(1)
 
     if args.check_all:
-        vm.check_all_applications(max_workers=args.workers)
+        vm.check_all_applications()
     elif args.summary:
         vm.show_summary()
     elif args.list:

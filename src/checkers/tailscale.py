@@ -47,14 +47,14 @@ def check_tailscale_versions(api_key=None, tailnet=None):
         print_error("tailscale", "API key and tailnet required for Tailscale checking")
         return results
     
-    print("Using Tailscale API to get device update status...")
+    print("  Using Tailscale API to get device update status...")
     devices = get_tailscale_api_devices(api_key, tailnet)
-    
+
     if not devices:
         print_error("tailscale", "No devices found")
         return results
-    
-    print(f"Found {len(devices)} Tailscale devices")
+
+    print(f"  Found {len(devices)} Tailscale devices")
     results['total_devices'] = len(devices)
     
     # Process each device
@@ -87,8 +87,8 @@ def check_tailscale_versions(api_key=None, tailnet=None):
         })
         
         # Print status
-        print(f"  {hostname} ({os_type}): {current_version} - {status}")
-    
-    print(f"Summary: {results['devices_up_to_date']} up-to-date, {results['devices_needing_updates']} need updates")
+        print(f"    {hostname} ({os_type}): {current_version} - {status}")
+
+    print(f"  Summary: {results['devices_up_to_date']} up-to-date, {results['devices_needing_updates']} need updates")
     
     return results
