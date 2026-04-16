@@ -215,15 +215,21 @@ class VersionManager:
                 return idx
         return None
 
-    def find_application_rows_by_name(self, app_name: str) -> list[int]:
-        """Find all note indices for a given application name (enabled only)."""
+    def find_application_rows_by_name(self, app_name: str, instance: str = "") -> list[int]:
+        """Find all note indices for a given application name (enabled only).
+
+        If instance is provided, only notes matching that instance are returned.
+        """
         matches = []
         for idx, note in enumerate(self.notes):
             fm = note["frontmatter"]
             if fm.get("enabled", True) is not True:
                 continue
-            if str(fm.get("name", "")).lower() == app_name.lower():
-                matches.append(idx)
+            if str(fm.get("name", "")).lower() != app_name.lower():
+                continue
+            if instance and str(fm.get("instance", "")).lower() != instance.lower():
+                continue
+            matches.append(idx)
         return matches
 
     def get_all_application_names(self) -> list[str]:
@@ -335,7 +341,7 @@ class VersionManager:
         firmware_update_available = False
 
         if check_current == "api":
-            if app_name == "home-assistant":
+            if app_name == "homeassistant":
                 if url:
                     current_version = get_home_assistant_version(instance, url)
             elif app_name == "esphome":
@@ -817,15 +823,16 @@ class VersionManager:
 
         print(f"\nTotal: {len(updates)} applications")
 
-    def upgrade_application(self, app_name: str, dry_run: bool = False):
+    def upgrade_application(self, app_name: str, dry_run: bool = False, instance: str = ""):
         """Upgrade matching application notes.
 
         - version_pin 'latest': trigger AWX job directly (no manifest change).
         - version_pin 'pinned': update the k3s manifest file with the new version,
           then trigger AWX if the upgrade method supports it.
         - All other version_pin values (e.g. channel pins): skipped.
+        - If instance is provided, only that instance is upgraded.
         """
-        matching = self.find_application_rows_by_name(app_name)
+        matching = self.find_application_rows_by_name(app_name, instance=instance)
 
         if not matching:
             print(f"Application '{app_name}' not found")

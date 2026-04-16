@@ -48,6 +48,12 @@ def main():
         ),
     )
     parser.add_argument(
+        "--instance",
+        type=str,
+        default="",
+        help="Filter to a specific instance (use with --upgrade or --app)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what would happen without making any changes (use with --upgrade)",
@@ -70,7 +76,7 @@ def main():
     elif args.updates:
         vm.show_updates()
     elif args.app:
-        matching = vm.find_application_rows_by_name(args.app)
+        matching = vm.find_application_rows_by_name(args.app, instance=args.instance)
 
         if not matching:
             print(f"Application '{args.app}' not found")
@@ -83,11 +89,11 @@ def main():
             vm.check_single_application(idx)
     elif args.upgrade:
         if args.dry_run:
-            print(f"[DRY RUN] Upgrade requested for '{args.upgrade}'")
+            print(f"[DRY RUN] Upgrade requested for '{args.upgrade}'" + (f" (instance: {args.instance})" if args.instance else ""))
         else:
-            print(f"Upgrade requested for '{args.upgrade}'")
+            print(f"Upgrade requested for '{args.upgrade}'" + (f" (instance: {args.instance})" if args.instance else ""))
         print()
-        vm.upgrade_application(args.upgrade, dry_run=args.dry_run)
+        vm.upgrade_application(args.upgrade, dry_run=args.dry_run, instance=args.instance)
     else:
         parser.print_help()
 
