@@ -869,7 +869,8 @@ class VersionManager:
                     skipped += 1
                     continue
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                success = trigger_awx_upgrade(app_name, instance, dry_run=dry_run)
+                awx_key = f"{app_name}-{instance}"
+                success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
                 if success:
                     launched += 1
                 else:
@@ -908,13 +909,12 @@ class VersionManager:
                 else:
                     print(f"  Skipping manifest update for {label} (--force)")
 
-                # Trigger AWX only if awx is enabled; pass instance as target_instance
-                # so multi-instance playbooks can filter.
+                # Trigger AWX only if awx is enabled.
+                # AWX key is {name}-{instance} matching k3s_applications convention.
                 if awx_enabled and upgrade_method in AWX_UPGRADE_METHODS:
                     print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
-                    success = trigger_awx_upgrade(
-                        app_name, instance, target_instance=instance, dry_run=dry_run
-                    )
+                    awx_key = f"{app_name}-{instance}"
+                    success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
                     if success:
                         launched += 1
                     else:

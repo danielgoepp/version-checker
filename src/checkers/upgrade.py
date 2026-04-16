@@ -1,3 +1,4 @@
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -15,14 +16,12 @@ AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest"}
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
 
 
-def trigger_awx_upgrade(app_name: str, instance: str, target_instance: str = "", dry_run: bool = False) -> bool:
+def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> bool:
     """Trigger an AWX job template to upgrade an application.
 
     Args:
-        app_name: Application name (matches k3s_applications key).
+        app_name: Full k3s_applications key ({note_name}-{instance}, e.g. 'homeassistant-prod').
         instance: Version-checker instance label (used for error messages).
-        target_instance: AWX instance name for multi-instance deployments.
-                         Passed as extra var so the playbook can filter to one instance.
         dry_run: If True, print what would happen without calling AWX.
 
     Returns True if the job was launched (or would be in dry-run), False on failure.
@@ -33,10 +32,7 @@ def trigger_awx_upgrade(app_name: str, instance: str, target_instance: str = "",
         return False
 
     url = f"{AWX_BASE_URL}/api/v2/job_templates/{AWX_UPGRADE_TEMPLATE_ID}/launch/"
-    extra_vars: dict = {"app_name": app_name}
-    if target_instance:
-        extra_vars["target_instance"] = target_instance
-    payload = {"extra_vars": extra_vars}
+    payload = {"extra_vars": json.dumps({"app_name": app_name})}
     headers = {
         "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json",
