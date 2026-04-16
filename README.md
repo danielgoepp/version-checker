@@ -10,15 +10,15 @@ A comprehensive Python-based system for tracking software versions across your i
 - **Dual Check Method Architecture**:
   - **Current Version**: API calls, SSH connections, Kubernetes queries, MQTT subscriptions
   - **Latest Version**: GitHub releases/tags, Docker Hub, custom APIs, platform updates
+- **Automated Upgrades**: Trigger AWX-based upgrades for applications with pinned or latest version tracking
 - **Visual Status Indicators**: Emoji icons for quick status recognition (✅⚠️📋❓)
 - **Automated Tracking**: Tracks current vs latest versions with timestamps
-- **Flexible Interface**: Command-line and interactive modes
 - **Performance Optimizations**:
   - API caching for GitHub and Docker Hub requests (~383,000x speedup on repeated calls)
   - Concurrent version checking using ThreadPoolExecutor
   - Efficient kubectl JSON parsing instead of shell pipes
 - **Security Hardening**: No shell=True in subprocess calls - all commands use list-based construction
-- **Selective Checking**: Enable/disable column to skip applications without removing from database
+- **Selective Checking**: Enable/disable field to skip applications without removing from vault
 
 ## Setup
 
@@ -45,6 +45,9 @@ pip install -r requirements.txt
 # Check all applications and instances
 ./check_versions.py --check-all
 
+# Check all with custom concurrent worker count
+./check_versions.py --check-all --workers 20
+
 # Show summary with status icons
 ./check_versions.py --summary
 
@@ -54,31 +57,39 @@ pip install -r requirements.txt
 # List only applications needing updates
 ./check_versions.py --updates
 
-# Check specific application (checks all instances)
-./check_versions.py --app "ApplicationName"  # Checks all instances
+# Check specific application (all instances)
+./check_versions.py --app "appname"
 
-# Interactive mode (default)
-./check_versions.py
+# Check specific application, specific instance only
+./check_versions.py --app "appname" --instance prod
+
+# Upgrade an application (triggers AWX job)
+# - version_pin=latest: triggers AWX directly
+# - version_pin=pinned: updates manifest file first, then triggers AWX
+./check_versions.py --app "appname" --upgrade
+
+# Upgrade a specific instance only
+./check_versions.py --app "appname" --instance prod --upgrade
+
+# Dry-run: show what would happen without making changes
+./check_versions.py --app "appname" --upgrade --dry-run
+
+# Force AWX trigger even if already up to date
+./check_versions.py --app "appname" --upgrade --force
 ```
-
-### Interactive Mode
-
-Run `./check_versions.py` without arguments for menu-driven interface:
-- Check all applications
-- Check single application
-- Show summary
-- Show all applications
-- Show updates only
 
 ## Obsidian Note Structure
 
 Each application is stored as a `.md` file in the Obsidian vault with YAML frontmatter fields:
 
-- **`name`**: Application name (home-assistant, kopia, etc.)
+- **`name`**: Application name (lowercase, e.g. `homeassistant`, `grafana`)
 - **`enabled`**: Boolean field to enable/disable checking (skips disabled apps for efficiency)
 - **`instance`**: Specific instance (ssd, hdd, b2, prod, etc.)
 - **`type`**: Application type/category
 - **`category`**: Infrastructure category
+- **`version_pin`**: `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`)
+- **`upgrade`**: Upgrade method (`ansible-manifest`, `ansible-helm`, `ansible-apt`)
+- **`awx`**: Boolean — whether to trigger an AWX job during `--upgrade`
 - **`target`**: Full URL connection endpoint (`https://hostname:port`)
 - **`github`**: GitHub repository path (owner/repo format)
 - **`dockerhub`**: Docker Hub repository path (org/image format)
@@ -145,6 +156,7 @@ Applications that run across multiple environments are tracked separately by ins
   - **`github.py`** - GitHub release and tag API functions with LRU caching
   - **`dockerhub.py`** - Docker Hub version checking with LRU caching
   - **`kubectl.py`** - Kubernetes-based version checkers using JSON output parsing
+  - **`upgrade.py`** - AWX job triggering and manifest version update logic
   - **`utils.py`** - Shared utilities (HTTP requests, version parsing, error handling)
   - Additional specialized checkers for specific application types and platforms
 - **`.venv/`** - Virtual environment (not committed to git)
@@ -154,26 +166,15 @@ Applications that run across multiple environments are tracked separately by ins
 # Activate virtual environment
 source .venv/bin/activate
 
-# Check all applications (including all Kopia instances)
+# Check all applications
 ./check_versions.py --check-all
 
 # Show summary with visual status icons
 ./check_versions.py --summary
-```
 
-### Example Multi-Instance Output:
-```
-Starting version check for all applications...
-==================================================
-Checking Application-instance1...
-  instance1: 1.2.3
-  Status: ✅ Up to Date
+# Upgrade a specific application
+./check_versions.py --app "grafana" --upgrade
 
-Checking Application-instance2...
-  instance2: 1.2.3  
-  Status: ✅ Up to Date
-
-Checking Application-instance3...
-  instance3: 1.2.2
-  Status: ⚠️ Update Available
+# Dry-run an upgrade to see what would happen
+./check_versions.py --app "grafana" --upgrade --dry-run
 ```

@@ -32,8 +32,8 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `type` | `Type` | Application type |
 | `category` | `Category` | Category grouping |
 | `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
-| `upgrade` | `Upgrade` | Upgrade method (e.g. `ansible-manifest`, `ansible-helm`, `ansible-apt`) |
-| `awx` | `AWX` | Whether to trigger AWX after a manifest update (`true`/`false`) |
+| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX) |
+| `awx` | `AWX` | Boolean — gates whether AWX is triggered during `--upgrade`. Set `false` for apps not in k3s_applications.yml |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
 | `key` | `Key` | Unique identifier or API key |
 | `github` | `GitHub` | GitHub repo path (owner/repo) |
@@ -51,11 +51,14 @@ The codebase uses PascalCase internally; YAML frontmatter uses snake_case. The `
 ### Note Example
 ```yaml
 ---
-name: home-assistant
+name: homeassistant
 enabled: true
 instance: prod
 type: application
 category: home-automation
+version_pin: pinned
+upgrade: ansible-manifest
+awx: true
 target: https://homeassistant.goepp.net
 github: home-assistant/core
 dockerhub: homeassistant/home-assistant
@@ -67,6 +70,11 @@ check_current: api
 check_latest: docker_hub
 ---
 ```
+
+### Note Naming Convention
+- Note files are named `{name}-{instance}.md` (e.g. `homeassistant-prod.md`)
+- The `name` field must be lowercase with no hyphens where possible (e.g. `homeassistant` not `home-assistant`)
+- The AWX app_name key is constructed as `{name}-{instance}` and **must match** the corresponding key in `k3s_applications.yml`
 
 ## Key Patterns
 
@@ -163,6 +171,17 @@ The system uses two separate fields for version checking:
 - **Syncthing**: `config.SYNCTHING_API_KEYS` dict by instance
 - **Uptime Kuma**: `config.UPTIME_KUMA_USERNAME`, `config.UPTIME_KUMA_PASSWORD`
 
+### AWX Upgrade Integration
+- **AWX base URL**: `https://awx-prod.goepp.net`, job template ID: 32
+- **app_name key**: Constructed as `{name}-{instance}` (e.g. `homeassistant-prod`) — **must match** the key in `k3s_applications.yml`
+- **extra_vars**: Sent as a JSON string: `{"extra_vars": "{\"app_name\": \"homeassistant-prod\"}"}`
+- **AWX survey**: Uses free `text` type — no hardcoded allowlist, accepts any app_name
+- **`awx: true`** frontmatter field required to trigger AWX; set `false` for apps not in k3s_applications.yml
+- **`ansible-manifest`** upgrade method: updates the manifest file in k3s-config repo (git add/commit/push), then triggers AWX
+- **`ansible-helm`** upgrade method: triggers AWX directly (no manifest update)
+- **`--force`** flag: skips version comparison and manifest file update, goes straight to AWX trigger
+- **k3s_applications.yml**: All entries are individual `manifest` or `helm` entries — no `manifest-multi` looping. Each entry is `{name}-{instance}` keyed independently
+
 ### Kubernetes Integration
 - **Context-aware**: kubectl context per application via `context` frontmatter field
 - **Namespace-aware**: Namespace per application via `namespace` frontmatter field
@@ -250,11 +269,13 @@ The system uses two separate fields for version checking:
 
 ### Adding New Applications
 1. Create a new `.md` file in the vault Software folder with appropriate YAML frontmatter
-2. Set `check_current` and `check_latest` fields plus `target` URL
-3. Populate both `github` and `dockerhub` fields when available (Docker Hub preferred automatically)
-4. Create or extend checker module in `src/checkers/` if needed
-5. Import and wire up checker function in `version_manager.py`
-6. Test with `--app` flag
+2. Name the file `{name}-{instance}.md`; use lowercase no-hyphen `name` (e.g. `homeassistant` not `home-assistant`)
+3. Set `check_current` and `check_latest` fields plus `target` URL
+4. Populate both `github` and `dockerhub` fields when available (Docker Hub preferred automatically)
+5. If the app uses AWX upgrade: add a matching `{name}-{instance}` entry in `k3s_applications.yml` with the correct deployment method and manifest/helm details; set `awx: true` in the note
+6. Create or extend checker module in `src/checkers/` if needed
+7. Import and wire up checker function in `version_manager.py`
+8. Test with `--app` flag
 
 ### Repository Field Strategy
 - **Populate Both**: Add both GitHub and DockerHub repositories when available
