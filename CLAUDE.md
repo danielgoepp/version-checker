@@ -338,4 +338,4 @@ The system uses two separate fields for version checking:
 
 ## Documentation
 - **README.md**: Keep things general, do not include specific details about the local specific environment.
-- **Auto-update requirement**: ALWAYS update README.md and other documentation files to reflect code changes before any git commit and push operation
+- **Auto-update requirement**: ALWAYS update README.md, CLAUDE.md, and other documentation files to reflect code changes before any git commit and push operation
