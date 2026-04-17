@@ -35,7 +35,7 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX) |
 | `awx` | `AWX` | Boolean — gates whether AWX is triggered during `--upgrade`. Set `false` for apps not in k3s_applications.yml |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
-| `key` | `Key` | Unique identifier or API key |
+| `esphome key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
 | `github` | `GitHub` | GitHub repo path (owner/repo) |
 | `dockerhub` | `DockerHub` | Docker Hub repo path (org/image) |
 | `current_version` | `Current_Version` | Detected current version |

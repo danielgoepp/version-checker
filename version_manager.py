@@ -102,7 +102,7 @@ FIELD_MAP = {
     "Upgrade": "upgrade",
     "AWX": "awx",
     "Target": "target",
-    "Key": "key",
+    "Esphome_Key": "esphome key",
     "GitHub": "github",
     "DockerHub": "dockerhub",
     "Current_Version": "current_version",
@@ -345,7 +345,7 @@ class VersionManager:
             elif app_name == "konnected":
                 current_version = get_konnected_current_version(instance, url)
             elif app_name == "airgradient":
-                encryption_key = app_data.get("Key", "")
+                encryption_key = app_data.get("Esphome_Key", "")
                 current_version = get_airgradient_current_version(
                     instance, url, encryption_key
                 )

@@ -19,10 +19,20 @@ def get_airgradient_current_version(instance, url=None, encryption_key=None):
             print_error(instance, "Could not parse hostname from URL")
             return None
 
+        import base64
+        def is_valid_base64(s):
+            if not s or not s.strip():
+                return False
+            try:
+                base64.b64decode(s.strip(), validate=True)
+                return True
+            except Exception:
+                return False
+
         async def get_esphome_device_info():
             try:
-                # Use encryption key if provided, otherwise try without
-                if encryption_key and encryption_key.strip():
+                # Use encryption key if provided and valid base64, otherwise try without
+                if encryption_key and is_valid_base64(encryption_key):
                     # Connect with encryption key
                     api = aioesphomeapi.APIClient(
                         hostname,
