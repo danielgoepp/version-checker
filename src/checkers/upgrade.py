@@ -10,7 +10,7 @@ AWX_BASE_URL = "https://awx-prod.goepp.net"
 AWX_UPGRADE_TEMPLATE_ID = 32
 
 # Upgrade methods that trigger an AWX job
-AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest"}
+AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest", "ansible-apt"}
 
 # Upgrade methods that support manifest-based pinned version updates
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}

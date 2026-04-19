@@ -547,12 +547,14 @@ class VersionManager:
                 else:
                     status = "Update Available"
             elif check_current == "ssh" and check_latest == "ssh_apt":
-                if latest_version == "update available":
+                if latest_version == "No updates":
+                    status = "Up to Date"
+                elif latest_version == "Update available":
                     status = "Update Available"
-                elif latest_version == "No updates":
+                elif current_version == latest_version:
                     status = "Up to Date"
                 else:
-                    status = "Up to Date"
+                    status = "Update Available"
             else:
                 current_clean = current_version
                 if "build:" in current_version:

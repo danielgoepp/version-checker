@@ -41,14 +41,15 @@ def check_server_status(instance, target):
 
                 # Format current version as "OS Name - Kernel Version"
                 current_version = f"{pretty_name} - {kernel}"
-                
+
                 # Format latest version based on kernel update status
-                if latest_kernel == "update available":
+                if latest_kernel == "no update":
+                    latest_version = "No updates"
+                elif latest_kernel == "update available":
                     latest_version = "Update available"
-                elif latest_kernel == "no update":
-                    latest_version = "No updates"
                 else:
-                    latest_version = "No updates"
+                    # Actual new kernel version extracted
+                    latest_version = f"{pretty_name} - {latest_kernel}"
                 
                 return {
                     "current_version": current_version,
