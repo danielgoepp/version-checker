@@ -17,13 +17,13 @@ def get_latest_linux_kernel_version(current_kernel, target_host):
     if not target_host:
         return _STATUS_NO_UPDATE
     try:
-        return check_for_kernel_updates(target_host)
+        return check_for_kernel_updates(target_host, current_kernel)
     except Exception as e:
         print(f"  Error checking kernel versions: {e}")
         return _STATUS_NO_UPDATE
 
 
-def check_for_kernel_updates(target_host):
+def check_for_kernel_updates(target_host, current_kernel=''):
     """
     Check for kernel updates via SSH using apt list --upgradable.
     Returns the new kernel version string, 'update available', or 'no update'.
@@ -42,13 +42,15 @@ def check_for_kernel_updates(target_host):
             for line in result.stdout.split('\n'):
                 if 'linux-image-' in line and 'generic' in line:
                     print("    Found kernel update available")
-                    return _STATUS_UPDATE_AVAILABLE
+                    new_version = _get_new_kernel_version(target_host, 'linux-image-generic')
+                    return new_version if new_version else _STATUS_UPDATE_AVAILABLE
                 elif 'raspberrypi-kernel' in line:
                     print("    Found kernel update available")
                     return _STATUS_UPDATE_AVAILABLE
                 elif 'linux-image-rpi-' in line:
                     print("    Found kernel update available")
-                    new_version = _get_rpi_new_kernel_version(target_host)
+                    meta_package = _rpi_meta_package(current_kernel)
+                    new_version = _get_new_kernel_version(target_host, meta_package)
                     return new_version if new_version else _STATUS_UPDATE_AVAILABLE
 
             return _STATUS_NO_UPDATE
@@ -60,17 +62,23 @@ def check_for_kernel_updates(target_host):
         return _STATUS_NO_UPDATE
 
 
-def _get_rpi_new_kernel_version(target_host):
-    """Extract actual new RPi kernel version from apt-cache show."""
+def _rpi_meta_package(current_kernel):
+    """Return the apt meta-package name matching the running RPi kernel variant."""
+    if 'rpi-2712' in current_kernel:
+        return 'linux-image-rpi-2712'
+    return 'linux-image-rpi-v8'
+
+
+def _get_new_kernel_version(target_host, meta_package):
+    """Extract actual new kernel version via apt-cache show on the meta-package."""
     try:
         cmd = [
             'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
             target_host,
-            'apt-cache show linux-image-rpi-v8 2>/dev/null | grep "^Depends" | head -1'
+            f'apt-cache show {meta_package} 2>/dev/null | grep "^Depends" | head -1'
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if result.returncode == 0 and result.stdout:
-            # Depends: linux-image-6.12.75+rpt-rpi-v8, kmod, linux-base (>= 4.3~)
             match = re.search(r'linux-image-(\d[^,\s]+)', result.stdout)
             if match:
                 return match.group(1)
