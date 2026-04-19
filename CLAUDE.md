@@ -218,6 +218,13 @@ The system uses two separate fields for version checking:
 - **Package Detection**: Checks `linux-image-generic` (Ubuntu) and `raspberrypi-kernel` (RPi)
 - **No apt update**: Uses `apt list --upgradable` without refreshing package lists
 
+## Shell Autocomplete
+Tab completion for `--app` and `--instance` is provided via `argcomplete`. The registration line lives in `~/.oh-my-zsh/custom/shortcuts.zsh`:
+```zsh
+eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-python-argcomplete check_versions.py)"
+```
+`--instance` completions are filtered to the selected `--app` when both are provided.
+
 ## Command Interface
 ```bash
 # Check all applications

@@ -1,14 +1,48 @@
 #!/Users/dang/Documents/Development/version-checker/.venv/bin/python
+# PYTHON_ARGCOMPLETE_OK
 
 import argparse
+import os
 import sys
+from pathlib import Path
 
 # Suppress urllib3 OpenSSL warning before importing anything that uses requests
 import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
-from version_manager import VersionManager
+
+def _vault_path() -> Path | None:
+    folder = os.environ.get("OBSIDIAN_VAULT_FOLDER", "/Users/dang/Documents/Goeppedia/Software")
+    p = Path(folder)
+    return p if p.is_dir() else None
+
+
+def _app_completer(prefix, parsed_args, **kwargs):
+    vault = _vault_path()
+    if vault is None:
+        return []
+    names = set()
+    for md in vault.glob("*.md"):
+        parts = md.stem.rsplit("-", 1)
+        name = parts[0] if len(parts) == 2 else md.stem
+        names.add(name)
+    return [n for n in sorted(names) if n.startswith(prefix)]
+
+
+def _instance_completer(prefix, parsed_args, **kwargs):
+    vault = _vault_path()
+    if vault is None:
+        return []
+    app = getattr(parsed_args, "app", None)
+    instances = []
+    for md in vault.glob("*.md"):
+        parts = md.stem.rsplit("-", 1)
+        if len(parts) == 2:
+            name, instance = parts
+            if app is None or name == app:
+                instances.append(instance)
+    return [i for i in sorted(set(instances)) if i.startswith(prefix)]
 
 
 def main():
@@ -30,7 +64,7 @@ def main():
         action="store_true",
         help="List only applications with updates available and exit",
     )
-    parser.add_argument("--app", type=str, help="Check specific application by name")
+    app_arg = parser.add_argument("--app", type=str, help="Check specific application by name")
     parser.add_argument(
         "--upgrade",
         action="store_true",
@@ -40,7 +74,7 @@ def main():
             "For version_pin='pinned': updates the k3s manifest file first, then triggers AWX."
         ),
     )
-    parser.add_argument(
+    instance_arg = parser.add_argument(
         "--instance",
         type=str,
         default="",
@@ -60,7 +94,17 @@ def main():
         help="Show what would happen without making any changes (use with --app --upgrade)",
     )
 
+    try:
+        import argcomplete
+        app_arg.completer = _app_completer
+        instance_arg.completer = _instance_completer
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
+
     args = parser.parse_args()
+
+    from version_manager import VersionManager
 
     vm = VersionManager(args.vault)
 
