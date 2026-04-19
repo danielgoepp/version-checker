@@ -24,7 +24,7 @@ def _app_completer(prefix, parsed_args, **kwargs):
         return []
     names = set()
     for md in vault.glob("*.md"):
-        parts = md.stem.rsplit("-", 1)
+        parts = md.stem.split("-", 1)
         name = parts[0] if len(parts) == 2 else md.stem
         names.add(name)
     return [n for n in sorted(names) if n.startswith(prefix)]
@@ -37,7 +37,7 @@ def _instance_completer(prefix, parsed_args, **kwargs):
     app = getattr(parsed_args, "app", None)
     instances = []
     for md in vault.glob("*.md"):
-        parts = md.stem.rsplit("-", 1)
+        parts = md.stem.split("-", 1)
         if len(parts) == 2:
             name, instance = parts
             if app is None or name == app:

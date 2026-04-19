@@ -43,7 +43,7 @@ def check_for_kernel_updates(target_host):
         if result.returncode == 0:
             # Check for any kernel-related packages
             for line in result.stdout.split('\n'):
-                if ('linux-image-' in line and 'generic' in line) or 'raspberrypi-kernel' in line:
+                if ('linux-image-' in line and 'generic' in line) or 'raspberrypi-kernel' in line or ('linux-image-rpi-' in line):
                     print("    Found kernel update available")
                     return 'update available'
             
