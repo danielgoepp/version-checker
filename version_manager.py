@@ -109,6 +109,7 @@ FIELD_MAP = {
     "Latest_Version": "latest_version",
     "Status": "status",
     "Last_Checked": "last_checked",
+    "Last_Upgraded": "last_upgraded",
     "Check_Current": "check_current",
     "Check_Latest": "check_latest",
 }
@@ -803,6 +804,8 @@ class VersionManager:
                 success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
                 if success:
                     launched += 1
+                    if not dry_run:
+                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                 else:
                     skipped += 1
                 continue
@@ -847,6 +850,8 @@ class VersionManager:
                     success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
                     if success:
                         launched += 1
+                        if not dry_run:
+                            self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                     else:
                         skipped += 1
                 continue

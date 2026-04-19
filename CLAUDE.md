@@ -42,6 +42,7 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `latest_version` | `Latest_Version` | Latest available version |
 | `status` | `Status` | Status string (see Status Icons) |
 | `last_checked` | `Last_Checked` | Timestamp of last check |
+| `last_upgraded` | `Last_Upgraded` | Timestamp of last successful AWX upgrade |
 | `check_current` | `Check_Current` | Method for current version detection |
 | `check_latest` | `Check_Latest` | Method for latest version lookup |
 
