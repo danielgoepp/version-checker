@@ -810,14 +810,14 @@ class VersionManager:
                     skipped += 1
                 continue
 
-            # --- pinned: update manifest (unless --force), then optionally trigger AWX ---
+            # --- pinned: update manifest (unless --force or helm), then optionally trigger AWX ---
             if version_pin == "pinned":
-                if upgrade_method not in MANIFEST_UPGRADE_METHODS:
-                    print(f"  Skipping {label}: upgrade method '{upgrade_method}' does not support manifest updates")
+                if upgrade_method not in AWX_UPGRADE_METHODS:
+                    print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
                     skipped += 1
                     continue
 
-                if not force:
+                if upgrade_method in MANIFEST_UPGRADE_METHODS and not force:
                     current_version = app_data.get("Current_Version", "") or ""
                     latest_version = app_data.get("Latest_Version", "") or ""
                     manifest_rel = f"{app_name}/manifests/{app_name}-{instance}.yaml"
@@ -839,7 +839,7 @@ class VersionManager:
                         continue
 
                     manifests_updated += 1
-                else:
+                elif upgrade_method in MANIFEST_UPGRADE_METHODS and force:
                     print(f"  Skipping manifest update for {label} (--force)")
 
                 # Trigger AWX only if awx is enabled.
