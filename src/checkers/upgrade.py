@@ -15,6 +15,9 @@ AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest"}
 # Upgrade methods that support manifest-based pinned version updates
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
 
+# Upgrade methods that support helm-values-based pinned version updates
+HELM_UPGRADE_METHODS = {"ansible-helm"}
+
 
 def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> bool:
     """Trigger an AWX job template to upgrade an application.
@@ -110,6 +113,56 @@ def update_manifest_version(
 
     manifest_path.write_text(updated, encoding="utf-8")
     print(f"  Updated {manifest_rel_path}: '{find_str}' → '{replace_str}'")
+    return True
+
+
+def update_helm_values_version(
+    values_rel_path: str, current_version: str, latest_version: str, dry_run: bool = False
+) -> bool:
+    """Update a pinned version tag in a Helm values file.
+
+    Same replacement logic as update_manifest_version — searches for the
+    current version string (and v-prefixed form) and replaces all occurrences.
+
+    Args:
+        values_rel_path: Path relative to K3S_CONFIG_FOLDER (e.g. 'hashicorp/helm/hashicorp-values-prod.yaml').
+        current_version: Version currently in the values file (e.g. '1.21.2').
+        latest_version:  Version to upgrade to (e.g. '1.22.0').
+        dry_run: If True, print what would change without writing.
+
+    Returns:
+        True if the version was found and updated (or would be in dry-run), False otherwise.
+    """
+    values_path = Path(config.K3S_CONFIG_FOLDER) / values_rel_path
+
+    if not values_path.exists():
+        print(f"  Helm values file not found: {values_path}")
+        return False
+
+    if not current_version or not latest_version:
+        print(f"  Cannot update helm values: current or latest version is unknown")
+        return False
+
+    content = values_path.read_text(encoding="utf-8")
+
+    if f"v{current_version}" in content:
+        find_str = f"v{current_version}"
+        replace_str = f"v{latest_version}"
+    elif current_version in content:
+        find_str = current_version
+        replace_str = latest_version
+    else:
+        print(f"  Version '{current_version}' not found in {values_rel_path}")
+        return False
+
+    updated = content.replace(find_str, replace_str)
+
+    if dry_run:
+        print(f"  [DRY RUN] Would update {values_rel_path}: '{find_str}' → '{replace_str}'")
+        return True
+
+    values_path.write_text(updated, encoding="utf-8")
+    print(f"  Updated {values_rel_path}: '{find_str}' → '{replace_str}'")
     return True
 
 

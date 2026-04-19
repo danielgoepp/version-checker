@@ -85,7 +85,7 @@ from src.checkers.vault import get_vault_version
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
-from src.checkers.upgrade import trigger_awx_upgrade, update_manifest_version, git_commit_push_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS
+from src.checkers.upgrade import trigger_awx_upgrade, update_manifest_version, update_helm_values_version, git_commit_push_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS
 import config
 
 
@@ -112,6 +112,7 @@ FIELD_MAP = {
     "Last_Upgraded": "last_upgraded",
     "Check_Current": "check_current",
     "Check_Latest": "check_latest",
+    "Helm_Values_File": "helm_values_file",
 }
 YAML_TO_FIELD = {v: k for k, v in FIELD_MAP.items()}
 
@@ -841,6 +842,36 @@ class VersionManager:
                     manifests_updated += 1
                 elif upgrade_method in MANIFEST_UPGRADE_METHODS and force:
                     print(f"  Skipping manifest update for {label} (--force)")
+
+                elif upgrade_method in HELM_UPGRADE_METHODS and not force:
+                    current_version = app_data.get("Current_Version", "") or ""
+                    latest_version = app_data.get("Latest_Version", "") or ""
+                    helm_values_file = app_data.get("Helm_Values_File", "") or ""
+
+                    if not helm_values_file:
+                        print(f"  Skipping {label}: helm_values_file not set in note")
+                        skipped += 1
+                        continue
+
+                    print(f"  Updating helm values for {label}...")
+                    values_ok = update_helm_values_version(
+                        helm_values_file, current_version, latest_version, dry_run=dry_run
+                    )
+                    if not values_ok:
+                        skipped += 1
+                        continue
+
+                    print(f"  Committing and pushing helm values for {label}...")
+                    push_ok = git_commit_push_manifest(
+                        helm_values_file, app_name, latest_version, dry_run=dry_run
+                    )
+                    if not push_ok:
+                        skipped += 1
+                        continue
+
+                    manifests_updated += 1
+                elif upgrade_method in HELM_UPGRADE_METHODS and force:
+                    print(f"  Skipping helm values update for {label} (--force)")
 
                 # Trigger AWX only if awx is enabled.
                 # AWX key is {name}-{instance} matching k3s_applications convention.
