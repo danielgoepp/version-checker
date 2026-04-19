@@ -220,6 +220,40 @@ def get_helm_chart_app_version(chart_repo, chart_name):
         # Get appVersion from Chart.yaml
         app_version = yaml_data.get('appVersion')
         return str(app_version) if app_version is not None else None
-        
+
     except Exception:
+        return None
+
+
+def get_helm_search_app_version(chart_name, instance=""):
+    """Get the latest app version for a helm chart using 'helm search repo'.
+
+    Args:
+        chart_name: Helm chart reference (e.g. 'hashicorp/vault').
+        instance: Used for error messages.
+
+    Returns the appVersion string, or None on failure.
+    """
+    try:
+        result = subprocess.run(
+            ["helm", "search", "repo", chart_name, "--output", "json"],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            print_error(instance, f"helm search repo failed: {result.stderr.strip()}")
+            return None
+
+        data = json.loads(result.stdout)
+        if not data:
+            print_error(instance, f"No results from helm search repo {chart_name}")
+            return None
+
+        app_version = data[0].get("app_version", "")
+        return app_version if app_version else None
+
+    except subprocess.TimeoutExpired:
+        print_error(instance, "helm search repo timed out")
+        return None
+    except Exception as e:
+        print_error(instance, f"helm search repo error: {e}")
         return None

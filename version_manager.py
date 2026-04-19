@@ -308,6 +308,10 @@ class VersionManager:
             latest_version = get_unifi_os_nvr_latest_version()
         elif check_latest == "graylog_compat":
             latest_version = get_opensearch_compatible_version()
+        elif check_latest == "helm_search":
+            if github_repo and github_repo.strip():
+                from src.checkers.utils import get_helm_search_app_version
+                latest_version = get_helm_search_app_version(github_repo, app_name)
         elif check_latest == "helm_chart":
             if app_name == "mongodb":
                 from src.checkers.utils import get_helm_chart_version

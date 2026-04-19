@@ -101,6 +101,9 @@ def update_manifest_version(
     elif current_version in content:
         find_str = current_version
         replace_str = latest_version
+    elif latest_version in content or f"v{latest_version}" in content:
+        print(f"  Manifest already at {latest_version} — no update needed")
+        return True
     else:
         print(f"  Version '{current_version}' not found in {manifest_rel_path}")
         return False
@@ -151,6 +154,9 @@ def update_helm_values_version(
     elif current_version in content:
         find_str = current_version
         replace_str = latest_version
+    elif latest_version in content or f"v{latest_version}" in content:
+        print(f"  Helm values already at {latest_version} — no update needed")
+        return True
     else:
         print(f"  Version '{current_version}' not found in {values_rel_path}")
         return False
