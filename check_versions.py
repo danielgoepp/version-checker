@@ -18,15 +18,31 @@ def _vault_path() -> Path | None:
     return p if p.is_dir() else None
 
 
+def _parse_note_name_instance(md: Path) -> tuple[str, str] | None:
+    import yaml
+    content = md.read_text(encoding="utf-8")
+    if not content.startswith("---\n"):
+        return None
+    end = content.find("\n---\n", 4)
+    if end == -1:
+        return None
+    frontmatter = yaml.safe_load(content[4:end]) or {}
+    name = frontmatter.get("name")
+    instance = frontmatter.get("instance")
+    if name and instance:
+        return name, instance
+    return None
+
+
 def _app_completer(prefix, parsed_args, **kwargs):
     vault = _vault_path()
     if vault is None:
         return []
     names = set()
     for md in vault.glob("*.md"):
-        parts = md.stem.split("-", 1)
-        name = parts[0] if len(parts) == 2 else md.stem
-        names.add(name)
+        result = _parse_note_name_instance(md)
+        if result:
+            names.add(result[0])
     return [n for n in sorted(names) if n.startswith(prefix)]
 
 
@@ -37,9 +53,9 @@ def _instance_completer(prefix, parsed_args, **kwargs):
     app = getattr(parsed_args, "app", None)
     instances = []
     for md in vault.glob("*.md"):
-        parts = md.stem.split("-", 1)
-        if len(parts) == 2:
-            name, instance = parts
+        result = _parse_note_name_instance(md)
+        if result:
+            name, instance = result
             if app is None or name == app:
                 instances.append(instance)
     return [i for i in sorted(set(instances)) if i.startswith(prefix)]
@@ -98,7 +114,7 @@ def main():
         import argcomplete
         app_arg.completer = _app_completer
         instance_arg.completer = _instance_completer
-        argcomplete.autocomplete(parser)
+        argcomplete.autocomplete(parser, exclude=["--"])
     except ImportError:
         pass
 
