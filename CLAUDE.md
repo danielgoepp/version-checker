@@ -6,7 +6,7 @@ Obsidian-based software version monitoring system with multi-instance support fo
 Note: This is for my specific infrastructure only, not a general purpose app. The only reason I make this a public repository is for reference only. If one were to take this code and try to make it work for them, significant changes would be needed to customize it. Unless of course you run the exact tech stack in the exact same way I do.
 
 ## Architecture
-- **Language**: Python 3.13.7 with requests, paho-mqtt, PyYAML libraries
+- **Language**: Python
 - **Database**: Obsidian vault markdown notes in `OBSIDIAN_VAULT_FOLDER` (default: `/Users/dang/Documents/Goeppedia/Software`)
 - **Note Format**: Each application is a `.md` file with YAML frontmatter containing all version data
 - **Modular Design**: Individual checkers in `src/checkers/` directory with shared utilities
@@ -343,7 +343,3 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 - **Write back with yaml.dump**: Use `sort_keys=False` and `allow_unicode=True`
 - **Note body preserved**: `_write_note()` currently writes only frontmatter (body is empty for version notes)
 - **Vault folder**: Set via `OBSIDIAN_VAULT_FOLDER` env var; default is `/Users/dang/Documents/Goeppedia/Software`
-
-## Documentation
-- **README.md**: Keep things general, do not include specific details about the local specific environment.
-- **Auto-update requirement**: ALWAYS update README.md, CLAUDE.md, and other documentation files to reflect code changes before any git commit and push operation

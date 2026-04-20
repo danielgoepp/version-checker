@@ -2,10 +2,8 @@ import subprocess
 import json
 
 def get_grafana_version(instance, url=None, context=None, namespace=None):
-    """Get Grafana version using kubectl exec to call internal API"""
     try:
         ns = namespace or "grafana"
-        # Build kubectl base command with optional context
         def _kubectl_cmd(*args):
             cmd = ["kubectl"]
             if context:
@@ -13,7 +11,6 @@ def get_grafana_version(instance, url=None, context=None, namespace=None):
             cmd.extend(args)
             return cmd
 
-        # Find the Grafana pod using JSON output
         cmd = _kubectl_cmd("get", "pods", "-n", ns, "-o", "json")
         pod_result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
 
@@ -21,10 +18,8 @@ def get_grafana_version(instance, url=None, context=None, namespace=None):
             print(f"  {instance}: Error getting grafana pods")
             return None
 
-        # Parse JSON output
         pods_data = json.loads(pod_result.stdout)
 
-        # Find running Grafana pod
         pod_name = None
         for pod in pods_data.get('items', []):
             name = pod.get('metadata', {}).get('name', '')
@@ -40,12 +35,10 @@ def get_grafana_version(instance, url=None, context=None, namespace=None):
 
         print(f"  {instance}: Found pod {pod_name}")
 
-        # Execute curl to Grafana health API inside the pod
         version_cmd = _kubectl_cmd("exec", pod_name, "-n", ns, "--", "curl", "-s", "http://localhost:3000/api/health")
         version_result = subprocess.run(version_cmd, capture_output=True, text=True, timeout=15, check=False)
 
         if version_result.returncode == 0:
-            # Parse JSON output to extract version
             try:
                 output = version_result.stdout.strip()
                 data = json.loads(output)

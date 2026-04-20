@@ -3,18 +3,7 @@ from .utils import http_get, print_error
 
 
 def get_open_webui_version(instance, url):
-    """
-    Get current Open WebUI version from /api/version endpoint
-    
-    Args:
-        instance: Instance name (e.g., 'adambalm')
-        url: Base URL of Open WebUI instance
-    
-    Returns:
-        Version string or None if failed
-    """
     try:
-        # Open WebUI /api/version endpoint
         version_url = f"{url}/api/version"
         
         response = requests.get(version_url, timeout=10)

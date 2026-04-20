@@ -1,7 +1,6 @@
 from .utils import http_get, print_error, print_version
 
 def get_airgradient_current_version(instance, url=None, encryption_key=None):
-    """Get current version from AirGradient ESPHome device via native API"""
     if not url:
         print_error(instance, "No device URL configured")
         return None
@@ -11,7 +10,6 @@ def get_airgradient_current_version(instance, url=None, encryption_key=None):
         import aioesphomeapi
         from urllib.parse import urlparse
 
-        # Parse the URL to get hostname
         parsed_url = urlparse(url)
         hostname = parsed_url.hostname
 
@@ -31,39 +29,29 @@ def get_airgradient_current_version(instance, url=None, encryption_key=None):
 
         async def get_esphome_device_info():
             try:
-                # Use encryption key if provided and valid base64, otherwise try without
                 if encryption_key and is_valid_base64(encryption_key):
-                    # Connect with encryption key
                     api = aioesphomeapi.APIClient(
                         hostname,
                         6053,
-                        password="",  # No password, just encryption
+                        password="",
                         noise_psk=encryption_key.strip()
                     )
                 else:
-                    # Connect without encryption (fallback for non-encrypted devices)
                     api = aioesphomeapi.APIClient(hostname, 6053, "")
 
-                # Try to connect
                 await api.connect(login=False)
 
-                # Get device info which includes version
                 device_info = await api.device_info()
-
-                # Also try to get entity states which might include firmware version
                 entities = await api.list_entities_services()
 
                 await api.disconnect()
 
-                # Look for AirGradient firmware version in project_version field
                 if hasattr(device_info, 'project_version') and device_info.project_version:
                     return device_info.project_version
 
-                # Fallback to firmware_version if available
                 if hasattr(device_info, 'firmware_version') and device_info.firmware_version:
                     return device_info.firmware_version
 
-                # Last fallback to ESPHome version
                 if hasattr(device_info, 'esphome_version') and device_info.esphome_version:
                     return device_info.esphome_version
 
@@ -72,7 +60,6 @@ def get_airgradient_current_version(instance, url=None, encryption_key=None):
             except Exception as e:
                 return f"Error: {str(e)}"
 
-        # Run the async function
         try:
             version = asyncio.run(get_esphome_device_info())
 
@@ -95,7 +82,6 @@ def get_airgradient_current_version(instance, url=None, encryption_key=None):
         return None
 
 def get_airgradient_version(instance, url=None, github_repo=None):
-    """Get latest version from AirGradient GitHub repository"""
     if not github_repo:
         print_error(instance, "No GitHub repository configured")
         return None

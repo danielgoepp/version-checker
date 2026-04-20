@@ -4,18 +4,12 @@ from .linux_kernel import get_latest_linux_kernel_version
 
 
 def check_server_status(instance, target):
-    """Check Linux version via SSH"""
-
     try:
-        # SSH command to get hostname, kernel, and full OS info
         cmd = [
             "ssh",
-            "-o",
-            "ConnectTimeout=10",
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=10",
+            "-o", "BatchMode=yes",
+            "-o", "StrictHostKeyChecking=no",
             instance,
             'hostname && uname -r && . /etc/os-release && echo "$PRETTY_NAME"',
         ]
@@ -27,30 +21,22 @@ def check_server_status(instance, target):
             if len(lines) >= 3:
                 hostname = lines[0].strip()
                 kernel = lines[1].strip()
-                pretty_name = (
-                    lines[2].strip().strip('"')
-                )  # Remove quotes from PRETTY_NAME
+                pretty_name = lines[2].strip().strip('"')
 
-                # Format: hostname | Kernel | Full Name
                 linux_info = f"{hostname} │ {kernel} │ {pretty_name}"
                 print(f"  {instance}: {linux_info}")
 
-                # Get latest kernel version for comparison - unified for all Linux systems
-                # Always use instance as SSH target (not target column)
                 latest_kernel = get_latest_linux_kernel_version(kernel, instance)
 
-                # Format current version as "OS Name - Kernel Version"
                 current_version = f"{pretty_name} - {kernel}"
 
-                # Format latest version based on kernel update status
                 if latest_kernel == "no update":
                     latest_version = "No updates"
                 elif latest_kernel == "update available":
                     latest_version = "Update available"
                 else:
-                    # Actual new kernel version extracted
                     latest_version = f"{pretty_name} - {latest_kernel}"
-                
+
                 return {
                     "current_version": current_version,
                     "latest_version": latest_version,

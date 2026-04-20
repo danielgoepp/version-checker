@@ -4,7 +4,6 @@ import paho.mqtt.client as paho
 import config
 
 def get_zigbee2mqtt_version(instance):
-    """Get Zigbee2MQTT version via MQTT for a specific instance"""
     try:
         current_version = None
         

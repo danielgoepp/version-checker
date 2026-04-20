@@ -8,12 +8,6 @@ _STATUS_UPDATE_AVAILABLE = 'update available'
 
 
 def get_latest_linux_kernel_version(current_kernel, target_host):
-    """
-    Check for available kernel updates using SSH and apt.
-    Returns the new kernel version string if one is available,
-    'no update' if up to date, or 'update available' as a fallback
-    when the version can't be extracted.
-    """
     if not target_host:
         return _STATUS_NO_UPDATE
     try:
@@ -24,10 +18,6 @@ def get_latest_linux_kernel_version(current_kernel, target_host):
 
 
 def check_for_kernel_updates(target_host, current_kernel=''):
-    """
-    Check for kernel updates via SSH using apt list --upgradable.
-    Returns the new kernel version string, 'update available', or 'no update'.
-    """
     try:
         print(f"    Checking for kernel updates on {target_host}...")
 
@@ -63,14 +53,12 @@ def check_for_kernel_updates(target_host, current_kernel=''):
 
 
 def _rpi_meta_package(current_kernel):
-    """Return the apt meta-package name matching the running RPi kernel variant."""
     if 'rpi-2712' in current_kernel:
         return 'linux-image-rpi-2712'
     return 'linux-image-rpi-v8'
 
 
 def _get_new_kernel_version(target_host, meta_package):
-    """Extract actual new kernel version via apt-cache show on the meta-package."""
     try:
         cmd = [
             'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',

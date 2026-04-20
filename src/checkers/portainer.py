@@ -5,16 +5,6 @@ from .utils import http_get, print_error
 
 
 def get_portainer_version(instance, url):
-    """
-    Get current Portainer version from /api/status endpoint
-    
-    Args:
-        instance: Instance name (e.g., 'adambalm')
-        url: Base URL of Portainer instance
-    
-    Returns:
-        Version string or None if failed
-    """
     try:
         # Portainer /api/status endpoint doesn't require authentication
         status_url = f"{url}/api/status"

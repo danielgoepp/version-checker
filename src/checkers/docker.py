@@ -2,10 +2,7 @@ import subprocess
 from .utils import print_error, print_version, extract_semantic_version
 
 def get_docker_version(instance, hostname):
-    """Get Docker version from remote host via SSH"""
     try:
-        # SSH to the host and get Docker version
-        # Build command as list for security
         cmd = ["ssh", hostname, "sudo", "docker", "version", "--format", "{{.Server.Version}}"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
 

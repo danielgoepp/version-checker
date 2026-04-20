@@ -1,10 +1,9 @@
-"""Uptime Kuma version checker using Socket.IO API"""
+
 
 from .utils import print_version, print_error
 
 
 def get_uptime_kuma_version(instance, url):
-    """Get Uptime Kuma version via the uptime_kuma_api library"""
     try:
         from uptime_kuma_api import UptimeKumaApi
         import config

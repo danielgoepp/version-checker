@@ -10,7 +10,6 @@ import yaml
 
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
-# Import all version checkers
 from src.checkers.github import get_github_latest_version, get_github_latest_tag
 from src.checkers.home_assistant import get_home_assistant_version
 from src.checkers.esphome import get_esphome_version
@@ -89,7 +88,6 @@ from src.checkers.upgrade import trigger_awx_upgrade, update_manifest_version, u
 import config
 
 
-# Field name mapping: PascalCase (checker code) <-> snake_case (YAML frontmatter)
 FIELD_MAP = {
     "Name": "name",
     "Enabled": "enabled",
@@ -118,7 +116,6 @@ YAML_TO_FIELD = {v: k for k, v in FIELD_MAP.items()}
 
 
 def _parse_note(path: Path) -> dict:
-    """Parse an Obsidian markdown note into frontmatter dict + body string."""
     content = path.read_text(encoding="utf-8")
     if not content.startswith("---\n"):
         return {"frontmatter": {}, "body": content, "path": path}
@@ -131,7 +128,6 @@ def _parse_note(path: Path) -> dict:
 
 
 def _write_note(note: dict) -> None:
-    """Write a note's frontmatter + body back to disk."""
     yaml_text = yaml.dump(
         note["frontmatter"],
         allow_unicode=True,
@@ -163,26 +159,15 @@ class VersionManager:
         self.load_vault()
 
     def load_vault(self):
-        """Load all .md note files from the vault Software folder."""
-        try:
-            md_files = sorted(self.vault_folder.glob("*.md"))
-            self.notes = [_parse_note(p) for p in md_files]
-            enabled = sum(
-                1 for n in self.notes if n["frontmatter"].get("enabled", True) is True
-            )
-            print(f"Loaded {len(self.notes)} applications from Obsidian vault ({enabled} enabled)")
-        except Exception as e:
-            print(f"Error loading vault: {e}")
-            self.notes = []
+        md_files = sorted(self.vault_folder.glob("*.md"))
+        self.notes = [_parse_note(p) for p in md_files]
+        enabled = sum(1 for n in self.notes if n["frontmatter"].get("enabled", True) is True)
+        print(f"Loaded {len(self.notes)} applications from Obsidian vault ({enabled} enabled)")
 
     def save_workbook(self):
-        """No-op: notes are saved individually after each check."""
         pass
 
-    def get_row_data(self, idx: int) -> dict | None:
-        """Return note data as a PascalCase dict for checker compatibility."""
-        if idx < 0 or idx >= len(self.notes):
-            return None
+    def get_row_data(self, idx: int) -> dict:
         fm = self.notes[idx]["frontmatter"]
         data = {}
         for yaml_key, pascal_key in YAML_TO_FIELD.items():
@@ -191,9 +176,6 @@ class VersionManager:
         return data
 
     def update_row_data(self, idx: int, updates: dict) -> None:
-        """Update specific fields in a note's frontmatter and write to disk."""
-        if idx < 0 or idx >= len(self.notes):
-            return
         fm = self.notes[idx]["frontmatter"]
         for pascal_key, value in updates.items():
             yaml_key = FIELD_MAP.get(pascal_key)
@@ -202,7 +184,6 @@ class VersionManager:
         _write_note(self.notes[idx])
 
     def find_application_row(self, app_name: str, instance: str = "prod") -> int | None:
-        """Find the note index for a specific application and instance."""
         for idx, note in enumerate(self.notes):
             fm = note["frontmatter"]
             if (
@@ -213,10 +194,6 @@ class VersionManager:
         return None
 
     def find_application_rows_by_name(self, app_name: str, instance: str = "") -> list[int]:
-        """Find all note indices for a given application name (enabled only).
-
-        If instance is provided, only notes matching that instance are returned.
-        """
         matches = []
         for idx, note in enumerate(self.notes):
             fm = note["frontmatter"]
@@ -230,7 +207,6 @@ class VersionManager:
         return matches
 
     def get_all_application_names(self) -> list[str]:
-        """Return sorted list of unique enabled application names."""
         names = set()
         for note in self.notes:
             fm = note["frontmatter"]
@@ -241,7 +217,6 @@ class VersionManager:
         return sorted(names)
 
     def _get_dockerhub_version_for_app(self, app_name, dockerhub_repo, version_pin=None):
-        """Helper method to get Docker Hub version for specific applications"""
         if version_pin == "beta":
             return get_dockerhub_latest_beta(dockerhub_repo)
         if app_name == "mongodb":
@@ -265,7 +240,6 @@ class VersionManager:
             return get_dockerhub_latest_version(dockerhub_repo)
 
     def _get_github_version_for_app(self, app_name, github_repo, check_latest):
-        """Helper method to get GitHub version for specific applications"""
         if app_name == "mongodb" and github_repo == "mongodb/mongo":
             return get_mongodb_latest_version()
         elif check_latest == "github_release":
@@ -275,7 +249,6 @@ class VersionManager:
         return None
 
     def get_latest_version(self, app_name, check_latest, github_repo, dockerhub_repo, version_pin=None):
-        """Get latest version based on check_latest method"""
         latest_version = None
 
         if check_latest == "github_release" or check_latest == "github_tag":
@@ -327,7 +300,6 @@ class VersionManager:
         return latest_version
 
     def get_current_version(self, app_data):
-        """Get current version based on check_current method"""
         app_name = app_data.get("Name", "")
         instance = app_data.get("Instance", "prod")
         check_current = app_data.get("Check_Current", "")
@@ -489,15 +461,7 @@ class VersionManager:
         return current_version, latest_version, firmware_update_available
 
     def check_single_application(self, idx: int):
-        """Check version for a single application by note index."""
-        if not self.notes:
-            print("No vault notes loaded")
-            return
-
         app_data = self.get_row_data(idx)
-        if not app_data:
-            return
-
         app_name = app_data.get("Name", "")
         instance = app_data.get("Instance", "prod")
         check_current = app_data.get("Check_Current", "")
@@ -586,11 +550,6 @@ class VersionManager:
         print()
 
     def check_all_applications(self):
-        """Check versions for all applications."""
-        if not self.notes:
-            print("No vault notes loaded")
-            return
-
         print("Starting version check for all applications...")
         print("=" * 50)
 
@@ -615,11 +574,6 @@ class VersionManager:
         print(f"Version check completed! Checked {total_apps} applications.")
 
     def show_summary(self):
-        """Display a summary of version status (enabled applications only)."""
-        if not self.notes:
-            print("No vault notes loaded")
-            return
-
         print("\nVersion Summary (Enabled Applications):")
         print("=" * 40)
 
@@ -659,11 +613,6 @@ class VersionManager:
             print(f"  {app_display}: {current} -> {latest}")
 
     def show_applications(self):
-        """Show all enabled applications in a formatted table."""
-        if not self.notes:
-            print("No vault notes loaded")
-            return
-
         all_data = []
         max_widths = {
             "index": 4,
@@ -710,11 +659,6 @@ class VersionManager:
         print(f"\nTotal: {len(all_data)} applications")
 
     def show_updates(self):
-        """Show only applications with updates available (enabled only)."""
-        if not self.notes:
-            print("No vault notes loaded")
-            return
-
         updates = []
         max_widths = {
             "index": 4,
@@ -762,16 +706,6 @@ class VersionManager:
         print(f"\nTotal: {len(updates)} applications")
 
     def upgrade_application(self, app_name: str, dry_run: bool = False, instance: str = "", force: bool = False):
-        """Upgrade matching application notes.
-
-        - version_pin 'latest': trigger AWX job directly (no manifest change).
-        - version_pin 'pinned': update the k3s manifest file with the new version,
-          then trigger AWX if the upgrade method supports it.
-        - All other version_pin values (e.g. channel pins): skipped.
-        - If instance is provided, only that instance is upgraded.
-        - If force is True: skip the 'Up to Date' check; for pinned apps skip
-          the manifest update and go straight to AWX.
-        """
         matching = self.find_application_rows_by_name(app_name, instance=instance)
 
         if not matching:
@@ -796,7 +730,6 @@ class VersionManager:
                 skipped += 1
                 continue
 
-            # --- latest: AWX-only path ---
             if version_pin == "latest":
                 if upgrade_method not in AWX_UPGRADE_METHODS:
                     print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
@@ -817,7 +750,6 @@ class VersionManager:
                     skipped += 1
                 continue
 
-            # --- pinned: update manifest (unless --force or helm), then optionally trigger AWX ---
             if version_pin == "pinned":
                 if upgrade_method not in AWX_UPGRADE_METHODS:
                     print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
@@ -879,8 +811,6 @@ class VersionManager:
                 elif upgrade_method in HELM_UPGRADE_METHODS and force:
                     print(f"  Skipping helm values update for {label} (--force)")
 
-                # Trigger AWX only if awx is enabled.
-                # AWX key is {name}-{instance} matching k3s_applications convention.
                 if awx_enabled and upgrade_method in AWX_UPGRADE_METHODS:
                     print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
                     awx_key = f"{app_name}-{instance}"

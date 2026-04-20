@@ -2,7 +2,6 @@ import config
 from .base import APIChecker
 
 def get_home_assistant_version(instance, url):
-    """Get Home Assistant version via API"""
     token = getattr(config, 'HA_TOKENS', {}).get(instance)
     if not token:
         print(f"  {instance}: No token configured")

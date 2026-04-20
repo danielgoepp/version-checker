@@ -5,15 +5,12 @@ from .utils import http_get, print_error, print_version, parse_image_version, ex
 
 
 class KubernetesChecker:
-    """Base class for Kubernetes-based version checking"""
-
     def __init__(self, instance, namespace=None, context=None):
         self.instance = instance
         self.namespace = namespace
         self.context = context
 
     def _kubectl_cmd(self, *args):
-        """Build a kubectl command with optional --context flag"""
         cmd = ["kubectl"]
         if self.context:
             cmd.extend(["--context", self.context])
@@ -21,10 +18,7 @@ class KubernetesChecker:
         return cmd
 
     def find_pod(self, pod_pattern, namespace=None):
-        """Find a running pod matching the given pattern using kubectl JSON output"""
         ns = namespace or self.namespace
-
-        # Build command as list for security
         cmd = self._kubectl_cmd("get", "pods", "-o", "json")
         if ns:
             cmd.extend(["-n", ns])
@@ -36,10 +30,8 @@ class KubernetesChecker:
                 print_error(self.instance, f"kubectl get pods failed: {result.stderr}")
                 return None
 
-            # Parse JSON output
             pods_data = json.loads(result.stdout)
 
-            # Filter for running pods matching pattern
             for pod in pods_data.get('items', []):
                 pod_name = pod.get('metadata', {}).get('name', '')
                 status = pod.get('status', {}).get('phase', '')
@@ -59,10 +51,7 @@ class KubernetesChecker:
             return None
 
     def exec_pod_command(self, pod_name, command, namespace=None, container=None):
-        """Execute a command in a pod"""
         ns = namespace or self.namespace
-
-        # Build command as list for security
         cmd = self._kubectl_cmd("exec")
         if ns:
             cmd.extend(["-n", ns])
@@ -71,7 +60,6 @@ class KubernetesChecker:
             cmd.extend(["-c", container])
         cmd.append("--")
 
-        # Split command string into arguments if it's a string
         if isinstance(command, str):
             cmd.extend(command.split())
         else:
@@ -91,10 +79,7 @@ class KubernetesChecker:
             return None
 
     def describe_resource(self, resource_type, resource_name, namespace=None):
-        """Describe a Kubernetes resource"""
         ns = namespace or self.namespace
-
-        # Build command as list for security
         cmd = self._kubectl_cmd("describe", resource_type, resource_name)
         if ns:
             cmd.extend(["-n", ns])
@@ -113,7 +98,6 @@ class KubernetesChecker:
             return None
     
     def get_image_version_from_description(self, description, image_pattern, version_pattern=r"v?(\d+\.\d+(?:\.\d+)?)"):
-        """Extract version from image in kubectl describe output"""
         if not description:
             return None
             
@@ -126,7 +110,6 @@ class KubernetesChecker:
             return None
     
     def get_version_from_command_output(self, command_output, version_pattern=r'v?(\d+\.\d+\.\d+)'):
-        """Extract version from command output using regex"""
         if not command_output:
             return None
             
@@ -139,7 +122,6 @@ class KubernetesChecker:
             return None
     
     def safe_execute(self, operation_func, *args, **kwargs):
-        """Safely execute an operation with timeout and error handling"""
         try:
             return operation_func(*args, **kwargs)
         except subprocess.TimeoutExpired:
@@ -151,14 +133,11 @@ class KubernetesChecker:
 
 
 class APIChecker:
-    """Base class for API-based version checking"""
-    
     def __init__(self, instance, base_url=None):
         self.instance = instance
         self.base_url = base_url
     
     def get_json_api_version(self, endpoint, version_field='version', headers=None, timeout=15):
-        """Get version from a JSON API endpoint"""
         try:
             url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}" if self.base_url else endpoint
             data = http_get(url, headers=headers, timeout=timeout)
@@ -176,7 +155,6 @@ class APIChecker:
             return None
     
     def get_text_api_version(self, endpoint, version_pattern, headers=None, timeout=15):
-        """Get version from a text API response using regex"""
         try:
             url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}" if self.base_url else endpoint
             response = http_get(url, headers=headers, timeout=timeout)
