@@ -99,7 +99,6 @@ FIELD_MAP = {
     "Category": "category",
     "Version_Pin": "version_pin",
     "Upgrade": "upgrade",
-    "AWX": "awx",
     "Target": "target",
     "Esphome_Key": "esphome key",
     "GitHub": "github",
@@ -734,7 +733,6 @@ class VersionManager:
             instance = app_data.get("Instance", "prod")
             version_pin = app_data.get("Version_Pin", "") or ""
             upgrade_method = app_data.get("Upgrade", "") or ""
-            awx_enabled = app_data.get("AWX") is True
             status = app_data.get("Status", "") or ""
             label = f"{app_name} ({instance})"
 
@@ -746,10 +744,6 @@ class VersionManager:
             if version_pin == "latest":
                 if upgrade_method not in AWX_UPGRADE_METHODS:
                     print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
-                    skipped += 1
-                    continue
-                if not awx_enabled:
-                    print(f"  Skipping {label}: awx is disabled for this application")
                     skipped += 1
                     continue
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
@@ -824,7 +818,7 @@ class VersionManager:
                 elif upgrade_method in HELM_UPGRADE_METHODS and force:
                     print(f"  Skipping helm values update for {label} (--force)")
 
-                if awx_enabled and upgrade_method in AWX_UPGRADE_METHODS:
+                if upgrade_method in AWX_UPGRADE_METHODS:
                     print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
                     awx_key = f"{app_name}-{instance}"
                     success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)

@@ -33,7 +33,6 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `category` | `Category` | Category grouping |
 | `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
 | `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX) |
-| `awx` | `AWX` | Boolean — gates whether AWX is triggered during `--upgrade`. Set `false` for apps not in k3s_applications.yml |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
 | `esphome key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
 | `github` | `GitHub` | GitHub repo path (owner/repo) |
@@ -59,7 +58,6 @@ type: application
 category: home-automation
 version_pin: pinned
 upgrade: ansible-manifest
-awx: true
 target: https://homeassistant.goepp.net
 github: home-assistant/core
 dockerhub: homeassistant/home-assistant
@@ -177,7 +175,7 @@ The system uses two separate fields for version checking:
 - **app_name key**: Constructed as `{name}-{instance}` (e.g. `homeassistant-prod`) — **must match** the key in `k3s_applications.yml`
 - **extra_vars**: Sent as a JSON string: `{"extra_vars": "{\"app_name\": \"homeassistant-prod\"}"}`
 - **AWX survey**: Uses free `text` type — no hardcoded allowlist, accepts any app_name
-- **`awx: true`** frontmatter field required to trigger AWX; set `false` for apps not in k3s_applications.yml
+- **AWX trigger**: Automatic when `upgrade` is `ansible-manifest` or `ansible-helm`; no separate `awx` field needed
 - **`ansible-manifest`** upgrade method: updates the manifest file in k3s-config repo (git add/commit/push), then triggers AWX
 - **`ansible-helm`** upgrade method: triggers AWX directly (no manifest update)
 - **`--force`** flag: skips version comparison and manifest file update, goes straight to AWX trigger
@@ -256,8 +254,8 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 ./check_versions.py --vault /path/to/vault/Software --check-all
 
 # Upgrade an application (use --app with --upgrade flag)
-# - version_pin='latest': triggers AWX job directly
-# - version_pin='pinned': updates k3s manifest, then triggers AWX (if awx: true)
+# - version_pin='latest': triggers AWX job directly (if upgrade is ansible-manifest or ansible-helm)
+# - version_pin='pinned': updates k3s manifest, then triggers AWX (if upgrade is ansible-manifest)
 ./check_versions.py --app "grafana" --upgrade
 ./check_versions.py --app "victoriametrics" --upgrade
 
@@ -280,7 +278,7 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 2. Name the file `{name}-{instance}.md`; use lowercase no-hyphen `name` (e.g. `homeassistant` not `home-assistant`)
 3. Set `check_current` and `check_latest` fields plus `target` URL
 4. Populate both `github` and `dockerhub` fields when available (Docker Hub preferred automatically)
-5. If the app uses AWX upgrade: add a matching `{name}-{instance}` entry in `k3s_applications.yml` with the correct deployment method and manifest/helm details; set `awx: true` in the note
+5. If the app uses AWX upgrade: set `upgrade: ansible-manifest` or `upgrade: ansible-helm` in the note, and add a matching `{name}-{instance}` entry in `k3s_applications.yml`
 6. Create or extend checker module in `src/checkers/` if needed
 7. Import and wire up checker function in `version_manager.py`
 8. Test with `--app` flag
