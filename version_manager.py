@@ -70,6 +70,7 @@ from src.checkers.dockerhub import (
     get_dockerhub_latest_beta,
 )
 from src.checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
+from src.checkers.openclaw import get_openclaw_version
 from src.checkers.wyoming import (
     get_wyoming_openwakeword_version,
     get_wyoming_piper_version,
@@ -435,6 +436,8 @@ class VersionManager:
                 current_version = get_minio_kubectl_version(instance, context=context, namespace=namespace)
             elif app_name == "n8n":
                 current_version = get_n8n_version_kubectl(instance, context=context, namespace=namespace)
+            elif app_name == "openclaw":
+                current_version = get_openclaw_version(instance, context=context, namespace=namespace)
             elif app_name == "rhasspy" and instance == "wyoming-openwakeword":
                 current_version = get_wyoming_openwakeword_version(instance, url)
             elif app_name == "rhasspy" and instance == "wyoming-piper":
