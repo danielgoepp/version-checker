@@ -6,7 +6,11 @@ from .utils import parse_json_version
 class TelegrafChecker(KubernetesChecker):
     def __init__(self, instance, context=None, namespace=None):
         super().__init__(instance, namespace=namespace or "telegraf", context=context)
-        self.pod_prefixes = {"vm": "telegraf-vm", "graylog": "telegraf-graylog"}
+        self.pod_prefixes = {
+            "mqtt-to-vms": "telegraf-mqtt-to-vms",
+            "mqtt-to-graylog": "telegraf-mqtt-to-graylog",
+            "upsd-to-vms": "telegraf-upsd-to-vms",
+        }
 
     def get_version(self):
         if self.instance not in self.pod_prefixes:
