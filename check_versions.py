@@ -155,8 +155,15 @@ def main():
                     print(f"  {name}")
                 sys.exit(1)
 
+            unavailable = []
             for idx in matching:
-                vm.check_single_application(idx)
+                label = vm.check_single_application(idx)
+                if label:
+                    unavailable.append(label)
+            if len(matching) > 1 and unavailable:
+                print(f"❓ Current version unavailable for {len(unavailable)} application(s):")
+                for label in unavailable:
+                    print(f"  {label}")
     elif args.upgrade:
         print("--upgrade requires --app")
         parser.print_help()

@@ -552,6 +552,8 @@ class VersionManager:
         print(f"  Status: {icon} {status}")
         print()
 
+        return f"{app_name} ({instance})" if not current_version else None
+
     def check_all_applications(self):
         print("Starting version check for all applications...")
         print("=" * 50)
@@ -570,11 +572,19 @@ class VersionManager:
         print(f"Checking {total_apps} enabled applications...")
         print()
 
+        unavailable = []
         for idx in enabled_indices:
-            self.check_single_application(idx)
+            label = self.check_single_application(idx)
+            if label:
+                unavailable.append(label)
 
         print("=" * 50)
         print(f"Version check completed! Checked {total_apps} applications.")
+
+        if unavailable:
+            print(f"\n❓ Current version unavailable for {len(unavailable)} application(s):")
+            for label in unavailable:
+                print(f"  {label}")
 
     def show_summary(self):
         print("\nVersion Summary (Enabled Applications):")
