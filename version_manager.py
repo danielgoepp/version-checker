@@ -38,6 +38,7 @@ from src.checkers.kubectl import (
     get_certmanager_version,
     get_postfix_version,
     get_minio_kubectl_version,
+    get_minio_operator_version,
 )
 from src.checkers.cnpg import get_cnpg_version, get_cnpg_postgres_latest_version
 from src.checkers.server_status import check_server_status
@@ -432,7 +433,10 @@ class VersionManager:
             elif app_name == "postfix":
                 current_version = get_postfix_version(instance, context=context, namespace=namespace)
             elif app_name == "minio":
-                current_version = get_minio_kubectl_version(instance, context=context, namespace=namespace)
+                if instance == "operator":
+                    current_version = get_minio_operator_version(instance, context=context, namespace=namespace)
+                else:
+                    current_version = get_minio_kubectl_version(instance, context=context, namespace=namespace)
             elif app_name == "n8n":
                 current_version = get_n8n_version_kubectl(instance, context=context, namespace=namespace)
             elif app_name == "openclaw":
