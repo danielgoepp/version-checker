@@ -750,7 +750,7 @@ class VersionManager:
                 if upgrade_method == "ansible-apt":
                     success = trigger_awx_apt_upgrade(instance, instance, dry_run=dry_run)
                 elif upgrade_method == "ansible-llm":
-                    success = trigger_awx_llm_upgrade(app_name, instance, dry_run=dry_run)
+                    success = trigger_awx_llm_upgrade(app_name.replace("-", ""), instance, dry_run=dry_run)
                 else:
                     awx_key = f"{app_name}-{instance}"
                     success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
