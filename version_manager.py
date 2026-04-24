@@ -519,10 +519,6 @@ class VersionManager:
             elif check_current == "ssh" and check_latest == "ssh_apt":
                 if latest_version == "No updates":
                     status = "Up to Date"
-                elif latest_version == "Update available":
-                    status = "Update Available"
-                elif current_version == latest_version:
-                    status = "Up to Date"
                 else:
                     status = "Update Available"
             else:

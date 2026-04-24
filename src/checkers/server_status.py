@@ -29,13 +29,7 @@ def check_server_status(instance, target):
                 latest_kernel = get_latest_linux_kernel_version(kernel, instance)
 
                 current_version = f"{pretty_name} - {kernel}"
-
-                if latest_kernel == "no update":
-                    latest_version = "No updates"
-                elif latest_kernel == "update available":
-                    latest_version = "Update available"
-                else:
-                    latest_version = f"{pretty_name} - {latest_kernel}"
+                latest_version = latest_kernel
 
                 return {
                     "current_version": current_version,
