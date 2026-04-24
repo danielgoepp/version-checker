@@ -741,19 +741,36 @@ class VersionManager:
                 skipped += 1
                 continue
 
+            if upgrade_method == "ansible-apt":
+                print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
+                success = trigger_awx_apt_upgrade(instance, instance, dry_run=dry_run)
+                if success:
+                    launched += 1
+                    if not dry_run:
+                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                else:
+                    skipped += 1
+                continue
+
+            if upgrade_method == "ansible-llm":
+                print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
+                success = trigger_awx_llm_upgrade(app_name, instance, dry_run=dry_run)
+                if success:
+                    launched += 1
+                    if not dry_run:
+                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                else:
+                    skipped += 1
+                continue
+
             if version_pin == "latest":
                 if upgrade_method not in AWX_UPGRADE_METHODS:
                     print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
                     skipped += 1
                     continue
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                if upgrade_method == "ansible-apt":
-                    success = trigger_awx_apt_upgrade(instance, instance, dry_run=dry_run)
-                elif upgrade_method == "ansible-llm":
-                    success = trigger_awx_llm_upgrade(app_name.replace("-", ""), instance, dry_run=dry_run)
-                else:
-                    awx_key = f"{app_name}-{instance}"
-                    success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
+                awx_key = f"{app_name}-{instance}"
+                success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
                 if success:
                     launched += 1
                     if not dry_run:
