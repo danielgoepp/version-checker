@@ -86,7 +86,7 @@ from src.checkers.vault import get_vault_version
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
-from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, update_manifest_version, update_helm_values_version, git_commit_push_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS
+from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, update_manifest_version, update_helm_values_version, git_commit_push_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS
 import config
 
 
@@ -749,6 +749,8 @@ class VersionManager:
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
                 if upgrade_method == "ansible-apt":
                     success = trigger_awx_apt_upgrade(instance, instance, dry_run=dry_run)
+                elif upgrade_method == "ansible-llm":
+                    success = trigger_awx_llm_upgrade(app_name, instance, dry_run=dry_run)
                 else:
                     awx_key = f"{app_name}-{instance}"
                     success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
