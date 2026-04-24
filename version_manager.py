@@ -376,7 +376,7 @@ class VersionManager:
             elif app_name == "portainer":
                 if url:
                     current_version = get_portainer_version(instance, url)
-            elif app_name == "open-webui":
+            elif app_name == "openwebui":
                 if url:
                     current_version = get_open_webui_version(instance, url)
             elif app_name == "uptime-kuma":
