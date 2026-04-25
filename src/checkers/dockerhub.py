@@ -20,7 +20,7 @@ def _get_dockerhub_latest_version_impl(repository, version_pattern=None, exclude
             return None
 
         if version_pattern is None:
-            version_pattern = re.compile(r'^v?(\d+\.\d+(?:\.\d+)?)$')
+            version_pattern = re.compile(r'^v?(\d+\.\d+(?:\.\d+)?)(?:-[a-z][a-z0-9]*)?$')
 
         if exclude_tags is None:
             exclude_tags = [
