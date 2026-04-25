@@ -14,6 +14,7 @@ AWX_OPS_UPGRADE_LLM_TEMPLATE_ID = 48
 AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest", "ansible-apt", "ansible-llm"}
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
 HELM_UPGRADE_METHODS = {"ansible-helm"}
+CR_UPGRADE_METHODS = {"ansible-cr"}
 
 
 def trigger_awx_apt_upgrade(target_host: str, instance: str, dry_run: bool = False) -> bool:
@@ -202,14 +203,15 @@ def update_helm_values_version(
     return True
 
 
-def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_version: str, dry_run: bool = False) -> bool:
+def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_version: str, dry_run: bool = False, extra_rel_paths: list[str] | None = None) -> bool:
     repo_path = Path(config.K3S_CONFIG_FOLDER)
-    manifest_full = str(repo_path / manifest_rel_path)
+    all_rel_paths = [manifest_rel_path] + (extra_rel_paths or [])
+    all_full_paths = [str(repo_path / p) for p in all_rel_paths]
     commit_msg = f"Update {app_name} to {latest_version}"
 
     if dry_run:
         for cmd, label in [
-            (["git", "-C", str(repo_path), "add", manifest_full], "git add"),
+            (["git", "-C", str(repo_path), "add"] + all_full_paths, "git add"),
             (["git", "-C", str(repo_path), "commit", "-m", commit_msg], "git commit"),
             (["git", "-C", str(repo_path), "push"], "git push"),
         ]:
@@ -226,7 +228,7 @@ def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_versi
             print(f"  git not found in PATH")
             return None
 
-    result = run_git(["git", "-C", str(repo_path), "add", manifest_full], "git add")
+    result = run_git(["git", "-C", str(repo_path), "add"] + all_full_paths, "git add")
     if result is None:
         return False
     if result.returncode != 0:
@@ -254,3 +256,36 @@ def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_versi
 
     print(f"  Committed and pushed: {commit_msg}")
     return True
+
+
+def kubectl_apply_manifest(manifest_rel_path: str, context: str, namespace: str, instance: str, dry_run: bool = False) -> bool:
+    manifest_path = Path(config.K3S_CONFIG_FOLDER) / manifest_rel_path
+
+    if not manifest_path.exists():
+        print(f"  Manifest not found: {manifest_path}")
+        return False
+
+    cmd = ["kubectl", "apply", "-f", str(manifest_path)]
+    if context:
+        cmd.extend(["--context", context])
+    if namespace:
+        cmd.extend(["--namespace", namespace])
+
+    if dry_run:
+        print(f"  [DRY RUN] Would run: {' '.join(cmd)}")
+        return True
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            print(f"  kubectl apply succeeded: {result.stdout.strip()}")
+            return True
+        else:
+            print(f"  kubectl apply failed: {(result.stderr or result.stdout).strip()}")
+            return False
+    except subprocess.TimeoutExpired:
+        print(f"  kubectl apply timed out")
+        return False
+    except FileNotFoundError:
+        print(f"  kubectl not found in PATH")
+        return False

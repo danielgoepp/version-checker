@@ -32,7 +32,8 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `type` | `Type` | Application type |
 | `category` | `Category` | Category grouping |
 | `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
-| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX) |
+| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply) |
+| `extra_manifests` | `Extra_Manifests` | YAML list of extra manifest paths (relative to k3s-config root) updated alongside the main manifest during `ansible-cr` upgrades |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
 | `esphome key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
 | `github` | `GitHub` | GitHub repo path (owner/repo) |

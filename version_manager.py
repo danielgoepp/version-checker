@@ -86,7 +86,7 @@ from src.checkers.vault import get_vault_version
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
-from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, update_manifest_version, update_helm_values_version, git_commit_push_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS
+from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
 import config
 
 
@@ -112,6 +112,7 @@ FIELD_MAP = {
     "Check_Current": "check_current",
     "Check_Latest": "check_latest",
     "Helm_Values_File": "helm_values_file",
+    "Extra_Manifests": "extra_manifests",
 }
 YAML_TO_FIELD = {v: k for k, v in FIELD_MAP.items()}
 
@@ -780,9 +781,53 @@ class VersionManager:
                 continue
 
             if version_pin == "pinned":
-                if upgrade_method not in AWX_UPGRADE_METHODS:
+                if upgrade_method not in AWX_UPGRADE_METHODS and upgrade_method not in CR_UPGRADE_METHODS:
                     print(f"  Skipping {label}: upgrade method '{upgrade_method}' is not supported")
                     skipped += 1
+                    continue
+
+                if upgrade_method in CR_UPGRADE_METHODS:
+                    context = app_data.get("Context", "") or ""
+                    namespace = app_data.get("Namespace", "") or ""
+                    manifest_rel = f"{app_name}/manifests/{app_name}-{instance}.yaml"
+                    extra_manifests = app_data.get("Extra_Manifests") or []
+
+                    if not force:
+                        current_version = app_data.get("Current_Version", "") or ""
+                        latest_version = app_data.get("Latest_Version", "") or ""
+                        print(f"  Updating manifest for {label}...")
+                        manifest_ok = update_manifest_version(
+                            manifest_rel, current_version, latest_version, dry_run=dry_run
+                        )
+                        if not manifest_ok:
+                            skipped += 1
+                            continue
+
+                        for extra_rel in extra_manifests:
+                            print(f"  Updating extra manifest {extra_rel}...")
+                            update_manifest_version(extra_rel, current_version, latest_version, dry_run=dry_run)
+
+                        print(f"  Committing and pushing manifests for {label}...")
+                        push_ok = git_commit_push_manifest(
+                            manifest_rel, app_name, latest_version, dry_run=dry_run,
+                            extra_rel_paths=extra_manifests,
+                        )
+                        if not push_ok:
+                            skipped += 1
+                            continue
+
+                        manifests_updated += 1
+                    else:
+                        print(f"  Skipping manifest update for {label} (--force)")
+
+                    print(f"  Applying manifest for {label}...")
+                    apply_ok = kubectl_apply_manifest(manifest_rel, context, namespace, instance, dry_run=dry_run)
+                    if apply_ok:
+                        launched += 1
+                        if not dry_run:
+                            self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                    else:
+                        skipped += 1
                     continue
 
                 if upgrade_method in MANIFEST_UPGRADE_METHODS and not force:
@@ -857,9 +902,9 @@ class VersionManager:
 
         print()
         if dry_run:
-            print(f"[DRY RUN] Would have updated {manifests_updated} manifest(s), launched {launched} AWX job(s), skipped {skipped}")
+            print(f"[DRY RUN] Would have updated {manifests_updated} manifest(s), triggered {launched} upgrade(s), skipped {skipped}")
         else:
-            print(f"Updated {manifests_updated} manifest(s), launched {launched} AWX job(s), skipped {skipped}")
+            print(f"Updated {manifests_updated} manifest(s), triggered {launched} upgrade(s), skipped {skipped}")
 
 
 if __name__ == "__main__":
