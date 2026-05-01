@@ -1,6 +1,7 @@
 import json
 import re
 import subprocess
+import time
 from pathlib import Path
 import requests
 import config
@@ -15,6 +16,59 @@ AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest", "ansible-apt", "ansib
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
 HELM_UPGRADE_METHODS = {"ansible-helm"}
 CR_UPGRADE_METHODS = {"ansible-cr"}
+
+_TERMINAL_STATUSES = {"successful", "failed", "error", "canceled"}
+_POLL_INTERVAL = 5
+_POLL_TIMEOUT = 600
+
+
+def wait_for_awx_job(job_id: int, instance: str, api_token: str) -> bool:
+    headers = {"Authorization": f"Bearer {api_token}"}
+    job_url = f"{AWX_BASE_URL}/api/v2/jobs/{job_id}/"
+
+    print(f"  Waiting for job {job_id}...", flush=True)
+    elapsed = 0
+    while elapsed < _POLL_TIMEOUT:
+        time.sleep(_POLL_INTERVAL)
+        elapsed += _POLL_INTERVAL
+        try:
+            resp = requests.get(job_url, headers=headers, timeout=15, verify=True)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as e:
+            print_error(instance, f"Error polling job {job_id}: {e}")
+            continue
+
+        status = data.get("status", "unknown")
+        if status not in _TERMINAL_STATUSES:
+            print(f"  [{elapsed}s] {status}...", flush=True)
+            continue
+
+        job_elapsed = data.get("elapsed")
+        elapsed_str = f"{job_elapsed:.1f}s" if job_elapsed is not None else f"{elapsed}s"
+        if status == "successful":
+            print(f"  Job {job_id} succeeded ({elapsed_str})")
+        else:
+            print(f"  Job {job_id} {status} ({elapsed_str})")
+
+        stdout_url = f"{AWX_BASE_URL}/api/v2/jobs/{job_id}/stdout/?format=txt"
+        try:
+            out_resp = requests.get(stdout_url, headers=headers, timeout=30, verify=True)
+            out_resp.raise_for_status()
+            output = out_resp.text.strip()
+            if output:
+                print()
+                print("  --- Job Output ---")
+                for line in output.splitlines():
+                    print(f"  {line}")
+                print("  --- End Output ---")
+        except requests.RequestException as e:
+            print_error(instance, f"Could not fetch job output: {e}")
+
+        return status == "successful"
+
+    print_error(instance, f"Job {job_id} timed out after {_POLL_TIMEOUT}s")
+    return False
 
 
 def trigger_awx_apt_upgrade(target_host: str, instance: str, dry_run: bool = False) -> bool:
@@ -40,11 +94,11 @@ def trigger_awx_apt_upgrade(target_host: str, instance: str, dry_run: bool = Fal
         response.raise_for_status()
         data = response.json()
         job_id = data.get("job") or data.get("id")
-        if job_id:
-            print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
-        else:
+        if not job_id:
             print(f"  AWX job launched (no job ID in response)")
-        return True
+            return True
+        print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
+        return wait_for_awx_job(job_id, instance, api_token)
     except requests.HTTPError as e:
         print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
         return False
@@ -76,11 +130,11 @@ def trigger_awx_llm_upgrade(component: str, instance: str, dry_run: bool = False
         response.raise_for_status()
         data = response.json()
         job_id = data.get("job") or data.get("id")
-        if job_id:
-            print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
-        else:
+        if not job_id:
             print(f"  AWX job launched (no job ID in response)")
-        return True
+            return True
+        print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
+        return wait_for_awx_job(job_id, instance, api_token)
     except requests.HTTPError as e:
         print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
         return False
@@ -112,11 +166,11 @@ def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> 
         response.raise_for_status()
         data = response.json()
         job_id = data.get("job") or data.get("id")
-        if job_id:
-            print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
-        else:
+        if not job_id:
             print(f"  AWX job launched (no job ID in response)")
-        return True
+            return True
+        print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
+        return wait_for_awx_job(job_id, instance, api_token)
     except requests.HTTPError as e:
         print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
         return False
