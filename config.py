@@ -45,7 +45,7 @@ MQTT_PASSWORD = get_required_env('MQTT_PASSWORD', 'MQTT password')
 PROXMOX_API_TOKEN = get_required_env('PROXMOX_API_TOKEN', 'Proxmox API token (format: user@realm!tokenid=uuid)')
 
 # Tailscale API credentials - REQUIRED for Tailscale checking
-TAILSCALE_API_KEY = get_optional_env('TAILSCALE_API_KEY', None, 'Tailscale API key for device management')
+TAILSCALE_ACCESS_TOKEN = get_optional_env('TAILSCALE_ACCESS_TOKEN', None, 'Tailscale API access token for device management')
 TAILSCALE_TAILNET = get_optional_env('TAILSCALE_TAILNET', None, 'Tailscale tailnet name (e.g., example.com)')
 
 # Graylog API credentials - OPTIONAL (fallback to basic auth if not provided)

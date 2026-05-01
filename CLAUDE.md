@@ -164,7 +164,7 @@ The system uses two separate fields for version checking:
 - **AWX**: `config.AWX_API_TOKENS` dict by instance (env: `AWX_API_TOKEN_PROD`, etc.)
 - **k3s-config**: `config.K3S_CONFIG_FOLDER` (env: `K3S_CONFIG_FOLDER`, default: `/Users/dang/Documents/Development/k3s-config`) — root of the k3s manifest repository used for pinned-version upgrades
 - **GitHub API**: `config.GITHUB_API_TOKEN` for rate limit avoidance (60/hour unauthenticated vs 5,000/hour authenticated)
-- **Tailscale**: `config.TAILSCALE_API_KEY`, `config.TAILSCALE_TAILNET`
+- **Tailscale**: `config.TAILSCALE_ACCESS_TOKEN`, `config.TAILSCALE_TAILNET`
 - **Graylog**: `config.GRAYLOG_TOKENS` dict by instance, `config.GRAYLOG_USERNAME`/`config.GRAYLOG_PASSWORD`
 - **UniFi Protect**: `config.UNIFI_PROTECT_API_KEY`
 - **UniFi Network**: `config.UNIFI_NETWORK_API_KEY`

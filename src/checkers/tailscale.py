@@ -4,16 +4,20 @@ from .utils import http_get, print_error, handle_generic_error
 from .github import get_github_latest_version
 
 def get_tailscale_api_devices(api_key, tailnet):
+    import requests as _requests
+    url = f"https://api.tailscale.com/api/v2/tailnet/{tailnet}/devices"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     try:
-        url = f"https://api.tailscale.com/api/v2/tailnet/{tailnet}/devices"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        response = http_get(url, headers=headers, timeout=15)
-        if response and isinstance(response, dict):
-            return response.get('devices', [])
-        return []
+        response = _requests.get(url, headers=headers, timeout=15)
+        if response.status_code == 401:
+            print_error("tailscale", "Access token is invalid or expired (401) — generate a new API access token at https://login.tailscale.com/admin/settings/keys and update TAILSCALE_ACCESS_TOKEN in .env")
+            return []
+        response.raise_for_status()
+        data = response.json()
+        return data.get('devices', [])
     except Exception as e:
         print_error("tailscale-api", f"Failed to get devices from API: {e}")
         return []

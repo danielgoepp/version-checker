@@ -346,7 +346,7 @@ class VersionManager:
             elif app_name == "tailscale":
                 print("  Checking all Tailscale devices...")
                 device_results = check_tailscale_versions(
-                    api_key=config.TAILSCALE_API_KEY, tailnet=config.TAILSCALE_TAILNET
+                    api_key=config.TAILSCALE_ACCESS_TOKEN, tailnet=config.TAILSCALE_TAILNET
                 )
                 if device_results and device_results["total_devices"] > 0:
                     devices_needing_updates = device_results["devices_needing_updates"]
