@@ -11,6 +11,7 @@ AWX_BASE_URL = "https://awx-prod.goepp.net"
 AWX_OPS_UPGRADE_K3S_TEMPLATE_ID = 32
 AWX_OPS_UPGRADE_SERVER_TEMPLATE_ID = 47
 AWX_OPS_UPGRADE_LLM_TEMPLATE_ID = 48
+AWX_OPS_VAULT_UNSEAL_TEMPLATE_ID = 49
 
 AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest", "ansible-apt", "ansible-llm"}
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
@@ -170,6 +171,40 @@ def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> 
             print(f"  AWX job launched (no job ID in response)")
             return True
         print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
+        return wait_for_awx_job(job_id, instance, api_token)
+    except requests.HTTPError as e:
+        print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
+        return False
+    except requests.RequestException as e:
+        print_error(instance, f"AWX request failed: {e}")
+        return False
+
+
+def trigger_vault_unseal(instance: str, dry_run: bool = False) -> bool:
+    api_token = config.AWX_API_TOKENS.get("prod")
+    if not api_token:
+        print_error(instance, "No AWX API token configured for 'prod' instance")
+        return False
+
+    url = f"{AWX_BASE_URL}/api/v2/job_templates/{AWX_OPS_VAULT_UNSEAL_TEMPLATE_ID}/launch/"
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+
+    if dry_run:
+        print(f"  [DRY RUN] Would trigger AWX vault unseal job (template {AWX_OPS_VAULT_UNSEAL_TEMPLATE_ID})")
+        return True
+
+    try:
+        response = requests.post(url, headers=headers, timeout=15, verify=True)
+        response.raise_for_status()
+        data = response.json()
+        job_id = data.get("job") or data.get("id")
+        if not job_id:
+            print(f"  Vault unseal job launched (no job ID in response)")
+            return True
+        print(f"  Vault unseal job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
         return wait_for_awx_job(job_id, instance, api_token)
     except requests.HTTPError as e:
         print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
