@@ -23,6 +23,7 @@ def _check_apt_upgradable(target_host, current_kernel):
     # We detect them by comparing the metapackage's Depends to the running kernel.
     # RPi kernels upgrade in-place and DO appear in apt list --upgradable.
     remote_cmd = (
+        'apt-get update -q 2>/dev/null; '
         'apt list --upgradable 2>/dev/null; '
         'echo "===KERNEL==="; '
         'apt-cache show linux-image-generic 2>/dev/null '
@@ -34,7 +35,7 @@ def _check_apt_upgradable(target_host, current_kernel):
         target_host, remote_cmd
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
     if result.returncode != 0:
         return _STATUS_NO_UPDATE
@@ -57,6 +58,10 @@ def _has_kernel_update(pkg_lines, kernel_section, current_kernel):
     # RPi: kernel packages upgrade in-place and appear directly in apt list --upgradable
     if any('raspberrypi-kernel' in l or 'linux-image-rpi-' in l for l in pkg_lines):
         return True
+
+    # LXC containers share the Proxmox host kernel (-pve suffix); they can't update it
+    if current_kernel and current_kernel.endswith('-pve'):
+        return False
 
     # Ubuntu: compare the kernel the metapackage depends on vs the running kernel
     # kernel_section is e.g. "linux-image-6.8.0-110-generic"
