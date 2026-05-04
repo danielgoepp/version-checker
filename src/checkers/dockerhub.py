@@ -34,7 +34,7 @@ def _get_dockerhub_latest_version_impl(repository, version_pattern=None, exclude
         for tag in data['results']:
             tag_name = tag.get('name', '')
 
-            if tag_name in exclude_tags or any(excluded in tag_name.lower() for excluded in ['rc', 'beta', 'alpha']):
+            if tag_name in exclude_tags or any(excluded in tag_name.lower() for excluded in ['rc', 'beta', 'alpha', 'dev', 'nightly', 'unstable']):
                 continue
 
             if isinstance(version_pattern, str):
