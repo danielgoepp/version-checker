@@ -59,9 +59,6 @@ if graylog_prod_token:
 GRAYLOG_USERNAME = get_optional_env('GRAYLOG_USERNAME', None, 'Graylog username for basic auth')
 GRAYLOG_PASSWORD = get_optional_env('GRAYLOG_PASSWORD', None, 'Graylog password for basic auth')
 
-# UniFi Protect credentials - OPTIONAL (for version checking)
-UNIFI_PROTECT_API_KEY = get_optional_env('UNIFI_PROTECT_API_KEY', None, 'UniFi Protect API key for authentication')
-
 # UniFi Network credentials - OPTIONAL (for version checking)
 UNIFI_NETWORK_API_KEY = get_optional_env('UNIFI_NETWORK_API_KEY', None, 'UniFi Network API key for authentication')
 

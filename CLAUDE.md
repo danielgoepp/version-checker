@@ -111,9 +111,7 @@ The system uses two separate fields for version checking:
 | `opnsense` | OPNsense firmware update logic | OPNsense firewall systems |
 | `tailscale` | Tailscale device update tracking | Tailscale VPN networks |
 | `helm_chart` | Helm chart app version | Applications distributed via Helm |
-| `unifi_protect_rss` | UniFi Protect RSS feed | UniFi Protect firmware |
 | `unifi_network_rss` | UniFi Network RSS feed | UniFi Network firmware |
-| `unifi_os_nvr_rss` | UniFi OS NVR RSS feed | UniFi OS NVR firmware |
 | `graylog_compat` | Graylog compatibility matrix | OpenSearch version compatible with Graylog |
 | `none` | No latest version checking | Applications without available update sources |
 
@@ -166,7 +164,6 @@ The system uses two separate fields for version checking:
 - **GitHub API**: `config.GITHUB_API_TOKEN` for rate limit avoidance (60/hour unauthenticated vs 5,000/hour authenticated)
 - **Tailscale**: `config.TAILSCALE_ACCESS_TOKEN`, `config.TAILSCALE_TAILNET`
 - **Graylog**: `config.GRAYLOG_TOKENS` dict by instance, `config.GRAYLOG_USERNAME`/`config.GRAYLOG_PASSWORD`
-- **UniFi Protect**: `config.UNIFI_PROTECT_API_KEY`
 - **UniFi Network**: `config.UNIFI_NETWORK_API_KEY`
 - **Syncthing**: `config.SYNCTHING_API_KEYS` dict by instance
 - **Uptime Kuma**: `config.UPTIME_KUMA_USERNAME`, `config.UPTIME_KUMA_PASSWORD`

@@ -52,15 +52,10 @@ from src.checkers.graylog import (
 )
 from src.checkers.grafana import get_grafana_version
 from src.checkers.mongodb import get_mongodb_latest_version
-from src.checkers.unifi_protect import (
-    get_unifi_protect_version,
-    get_unifi_protect_latest_version,
-)
 from src.checkers.unifi_network import (
     get_unifi_network_version,
     get_unifi_network_latest_version,
 )
-from src.checkers.unifi_os import get_unifi_os_nvr_latest_version, get_unifi_os_version
 from src.checkers.samba import get_samba_version, get_latest_samba_version
 from src.checkers.syncthing import check_syncthing_current_version
 from src.checkers.awx import check_awx_current_version
@@ -273,14 +268,9 @@ class VersionManager:
                     )
         elif check_latest == "proxmox":
             latest_version = get_proxmox_latest_version(include_ceph=True)
-        elif check_latest == "unifi_protect_rss":
-            if app_name == "ui-protect":
-                latest_version = get_unifi_protect_latest_version()
         elif check_latest == "unifi_network_rss":
             if app_name == "ui-network":
                 latest_version = get_unifi_network_latest_version()
-        elif check_latest == "unifi_os_nvr_rss":
-            latest_version = get_unifi_os_nvr_latest_version()
         elif check_latest == "graylog_compat":
             latest_version = get_opensearch_compatible_version()
         elif check_latest == "helm_search":
@@ -356,9 +346,6 @@ class VersionManager:
             elif app_name == "graylog":
                 if url:
                     current_version = get_graylog_current_version(instance, url)
-            elif app_name == "ui-protect":
-                if url:
-                    current_version = get_unifi_protect_version(instance, url)
             elif app_name == "ui-network":
                 if url:
                     current_version = get_unifi_network_version(instance, url)
@@ -392,11 +379,6 @@ class VersionManager:
                 if isinstance(kernel_result, dict):
                     current_version = kernel_result.get("current_version")
                     latest_version = kernel_result.get("latest_version")
-            else:
-                if app_name == "unifi-os":
-                    if url:
-                        current_version = get_unifi_os_version(instance, url)
-
         elif check_current == "kubectl":
             if app_name == "telegraf":
                 current_version = get_telegraf_version(instance, context=context, namespace=namespace)
@@ -480,12 +462,7 @@ class VersionManager:
 
         print(f"Checking {app_name} ({instance})...")
 
-        if app_name == "unifi-os" and check_latest == "unifi_os_nvr_rss":
-            current_version, ssh_latest_version, firmware_update_available = (
-                self.get_current_version(app_data)
-            )
-            latest_version = get_unifi_os_nvr_latest_version(current_version)
-        elif check_latest == "proxmox":
+        if check_latest == "proxmox":
             current_version, ssh_latest_version, firmware_update_available = (
                 self.get_current_version(app_data)
             )
