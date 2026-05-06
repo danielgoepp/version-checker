@@ -112,7 +112,7 @@ The system uses two separate fields for version checking:
 | `opnsense` | OPNsense firmware update logic | OPNsense firewall systems |
 | `tailscale` | Tailscale device update tracking | Tailscale VPN networks |
 | `helm_chart` | Helm chart app version | Applications distributed via Helm |
-| `unifi_network_rss` | UniFi Network community GraphQL API | UniFi Network Application |
+| `unifi_network` | UniFi Network community GraphQL API | UniFi Network Application |
 | `unifi_os_server` | UniFi Network community GraphQL API | UniFi OS Server firmware |
 | `graylog_compat` | Graylog compatibility matrix | OpenSearch version compatible with Graylog |
 | `none` | No latest version checking | Applications without available update sources |

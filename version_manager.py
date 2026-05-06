@@ -270,7 +270,7 @@ class VersionManager:
                     )
         elif check_latest == "proxmox":
             latest_version = get_proxmox_latest_version(include_ceph=True)
-        elif check_latest == "unifi_network_rss":
+        elif check_latest == "unifi_network":
             if app_name == "ui-network":
                 latest_version = get_unifi_network_latest_version()
         elif check_latest == "unifi_os_server":
