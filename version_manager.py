@@ -55,6 +55,8 @@ from src.checkers.mongodb import get_mongodb_latest_version
 from src.checkers.unifi_network import (
     get_unifi_network_version,
     get_unifi_network_latest_version,
+    get_unifi_os_server_version,
+    get_unifi_os_server_latest_version,
 )
 from src.checkers.samba import get_samba_version, get_latest_samba_version
 from src.checkers.syncthing import check_syncthing_current_version
@@ -271,6 +273,8 @@ class VersionManager:
         elif check_latest == "unifi_network_rss":
             if app_name == "ui-network":
                 latest_version = get_unifi_network_latest_version()
+        elif check_latest == "unifi_os_server":
+            latest_version = get_unifi_os_server_latest_version()
         elif check_latest == "graylog_compat":
             latest_version = get_opensearch_compatible_version()
         elif check_latest == "helm_search":
@@ -347,7 +351,9 @@ class VersionManager:
                 if url:
                     current_version = get_graylog_current_version(instance, url)
             elif app_name == "ui-network":
-                if url:
+                if instance == "uos":
+                    current_version = get_unifi_os_server_version(instance, url)
+                elif url:
                     current_version = get_unifi_network_version(instance, url)
             elif app_name == "awx":
                 if url:
