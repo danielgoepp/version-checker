@@ -94,7 +94,7 @@ The system uses two separate fields for version checking:
 
 #### Current Version Methods (`check_current`)
 | Method | Description | Example Applications |
-|--------|-------------|---------------------|
+| ------ | ----------- | -------------------- |
 | `api` | REST API calls for version info | Web-based applications with API endpoints |
 | `ssh` | SSH connections showing OS + kernel | Remote servers and systems |
 | `kubectl` | Kubernetes operations (pod queries, node info) | Containerized applications in Kubernetes |
@@ -103,7 +103,7 @@ The system uses two separate fields for version checking:
 
 #### Latest Version Methods (`check_latest`)
 | Method | Description | Example Applications |
-|--------|-------------|---------------------|
+| ------ | ----------- | -------------------- |
 | `github_release` | GitHub releases API | Open source projects with GitHub releases |
 | `github_tag` | GitHub tags API | Projects using Git tags for versioning |
 | `docker_hub` | Docker Hub/container tags | Containerized applications on Docker Hub |
