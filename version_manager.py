@@ -14,6 +14,7 @@ from src.checkers.github import get_github_latest_version, get_github_latest_tag
 from src.checkers.home_assistant import get_home_assistant_version
 from src.checkers.esphome import get_esphome_version
 from src.checkers.music_assistant import get_music_assistant_version
+from src.checkers.ble_proxy import get_ble_proxy_version
 from src.checkers.konnected import get_konnected_version, get_konnected_current_version
 from src.checkers.airgradient import (
     get_airgradient_version,
@@ -83,7 +84,7 @@ from src.checkers.vault import get_vault_version as get_vault_kubectl_version, g
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
-from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, trigger_vault_unseal, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
+from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, trigger_awx_esphome_upgrade, trigger_vault_unseal, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
 import config
 
 
@@ -316,6 +317,8 @@ class VersionManager:
             elif app_name == "esphome":
                 if url:
                     current_version = get_esphome_version(url)
+            elif app_name == "ble-proxy":
+                current_version = get_ble_proxy_version(instance, url)
             elif app_name == "konnected":
                 current_version = get_konnected_current_version(instance, url)
             elif app_name == "airgradient":
@@ -741,6 +744,21 @@ class VersionManager:
             if upgrade_method == "ansible-llm":
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
                 success = trigger_awx_llm_upgrade(app_name, instance, dry_run=dry_run)
+                if success:
+                    launched += 1
+                    if not dry_run:
+                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                else:
+                    skipped += 1
+                continue
+
+            if upgrade_method == "ansible-esphome":
+                if launched > 0:
+                    print(f"  Skipping {label}: ESPHome AWX job already launched for all instances")
+                    skipped += 1
+                    continue
+                print(f"  Upgrading all {app_name} devices via AWX (method: {upgrade_method})...")
+                success = trigger_awx_esphome_upgrade(app_name, instance, dry_run=dry_run)
                 if success:
                     launched += 1
                     if not dry_run:

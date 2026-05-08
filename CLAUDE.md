@@ -32,7 +32,7 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `type` | `Type` | Application type |
 | `category` | `Category` | Category grouping |
 | `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
-| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply) |
+| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply), `ansible-esphome` (ESPHome device OTA via AWX) |
 | `extra_manifests` | `Extra_Manifests` | YAML list of extra manifest paths (relative to k3s-config root) updated alongside the main manifest during `ansible-cr` upgrades |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
 | `esphome key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
@@ -88,6 +88,7 @@ Applications can have multiple instances tracked separately (one note per instan
 - **Traefik**: prod, mudderpi, morgspi
 - **PostgreSQL**: grafana-prod, hertzbeat-prod, homeassistant-prod (CNPG clusters)
 - **UniFi Network**: application (Network Application version), uos (UniFi OS Server firmware version)
+- **BLE Proxy**: bedroom, garage, greatroom, studio-a, workshop
 
 ### Check Methods (Split Architecture)
 The system uses two separate fields for version checking:
@@ -171,13 +172,14 @@ The system uses two separate fields for version checking:
 - **Uptime Kuma**: `config.UPTIME_KUMA_USERNAME`, `config.UPTIME_KUMA_PASSWORD`
 
 ### AWX Upgrade Integration
-- **AWX base URL**: `https://awx-prod.goepp.net`, job template ID: 32
+- **AWX base URL**: `https://awx-prod.goepp.net`, k3s job template ID: 32, ESPHome job template ID: 31
 - **app_name key**: Constructed as `{name}-{instance}` (e.g. `homeassistant-prod`) — **must match** the key in `k3s_applications.yml`
 - **extra_vars**: Sent as a JSON string: `{"extra_vars": "{\"app_name\": \"homeassistant-prod\"}"}`
 - **AWX survey**: Uses free `text` type — no hardcoded allowlist, accepts any app_name
 - **AWX trigger**: Automatic when `upgrade` is `ansible-manifest` or `ansible-helm`; no separate `awx` field needed
 - **`ansible-manifest`** upgrade method: updates the manifest file in k3s-config repo (git add/commit/push), then triggers AWX
 - **`ansible-helm`** upgrade method: triggers AWX directly (no manifest update)
+- **`ansible-esphome`** upgrade method: triggers AWX job template 31 with `target_pattern=<app_name>`; fires once for all instances (does not wait for job completion due to long compile times)
 - **`--force`** flag: skips version comparison and manifest file update, goes straight to AWX trigger
 - **k3s_applications.yml**: All entries are individual `manifest` or `helm` entries — no `manifest-multi` looping. Each entry is `{name}-{instance}` keyed independently
 

@@ -8,12 +8,13 @@ import config
 from .utils import print_error
 
 AWX_BASE_URL = "https://awx-prod.goepp.net"
+AWX_OPS_UPGRADE_ESPHOME_TEMPLATE_ID = 31
 AWX_OPS_UPGRADE_K3S_TEMPLATE_ID = 32
 AWX_OPS_UPGRADE_SERVER_TEMPLATE_ID = 47
 AWX_OPS_UPGRADE_LLM_TEMPLATE_ID = 48
 AWX_OPS_VAULT_UNSEAL_TEMPLATE_ID = 49
 
-AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest", "ansible-apt", "ansible-llm"}
+AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest", "ansible-apt", "ansible-llm", "ansible-esphome"}
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
 HELM_UPGRADE_METHODS = {"ansible-helm"}
 CR_UPGRADE_METHODS = {"ansible-cr"}
@@ -51,20 +52,6 @@ def wait_for_awx_job(job_id: int, instance: str, api_token: str) -> bool:
             print(f"  Job {job_id} succeeded ({elapsed_str})")
         else:
             print(f"  Job {job_id} {status} ({elapsed_str})")
-
-        stdout_url = f"{AWX_BASE_URL}/api/v2/jobs/{job_id}/stdout/?format=txt"
-        try:
-            out_resp = requests.get(stdout_url, headers=headers, timeout=30, verify=True)
-            out_resp.raise_for_status()
-            output = out_resp.text.strip()
-            if output:
-                print()
-                print("  --- Job Output ---")
-                for line in output.splitlines():
-                    print(f"  {line}")
-                print("  --- End Output ---")
-        except requests.RequestException as e:
-            print_error(instance, f"Could not fetch job output: {e}")
 
         return status == "successful"
 
@@ -136,6 +123,42 @@ def trigger_awx_llm_upgrade(component: str, instance: str, dry_run: bool = False
             return True
         print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
         return wait_for_awx_job(job_id, instance, api_token)
+    except requests.HTTPError as e:
+        print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
+        return False
+    except requests.RequestException as e:
+        print_error(instance, f"AWX request failed: {e}")
+        return False
+
+
+def trigger_awx_esphome_upgrade(target_pattern: str, instance: str, dry_run: bool = False) -> bool:
+    api_token = config.AWX_API_TOKENS.get("prod")
+    if not api_token:
+        print_error(instance, "No AWX API token configured for 'prod' instance")
+        return False
+
+    url = f"{AWX_BASE_URL}/api/v2/job_templates/{AWX_OPS_UPGRADE_ESPHOME_TEMPLATE_ID}/launch/"
+    payload = {"extra_vars": json.dumps({"target_pattern": target_pattern, "esphome_clean_build": "true"})}
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+
+    if dry_run:
+        print(f"  [DRY RUN] Would POST to {url}")
+        print(f"  [DRY RUN] Payload: {payload}")
+        return True
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=15, verify=True)
+        response.raise_for_status()
+        data = response.json()
+        job_id = data.get("job") or data.get("id")
+        if not job_id:
+            print(f"  AWX job launched (no job ID in response)")
+            return True
+        print(f"  AWX job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
+        return True
     except requests.HTTPError as e:
         print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
         return False
