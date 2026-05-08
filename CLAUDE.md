@@ -214,7 +214,7 @@ The system uses two separate fields for version checking:
 - **latest_version**: Shows "No updates" or "Update available"
 - **Unified Logic**: Single `linux_kernel.py` handles Ubuntu and Raspberry Pi
 - **Package Detection**: Checks `linux-image-generic` (Ubuntu) and `raspberrypi-kernel` (RPi)
-- **No apt update**: Uses `apt list --upgradable` without refreshing package lists
+- **apt update**: Runs `apt-get update -q > /dev/null 2>&1` silently before `apt list --upgradable` to ensure fresh package data
 
 ## Shell Autocomplete
 Tab completion for `--app` and `--instance` is provided via `argcomplete`. The registration line lives in `~/.oh-my-zsh/custom/shortcuts.zsh`:
