@@ -45,6 +45,9 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `last_upgraded` | `Last_Upgraded` | Timestamp of last successful AWX upgrade |
 | `check_current` | `Check_Current` | Method for current version detection |
 | `check_latest` | `Check_Latest` | Method for latest version lookup |
+| `library_github` | `Library_GitHub` | GitHub repo path for the ESPHome project library (e.g. `konnected-io/konnected-esphome`) — used by airgradient and konnected to track library version separately from ESPHome version |
+| `current_library_version` | `Current_Library_Version` | Current version of the ESPHome project library running on the device |
+| `latest_library_version` | `Latest_Library_Version` | Latest available version of the ESPHome project library |
 
 ### Field Name Mapping
 The codebase uses PascalCase internally; YAML frontmatter uses snake_case. The `FIELD_MAP` dict in `version_manager.py` handles bidirectional translation. Always use snake_case in note frontmatter.

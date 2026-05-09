@@ -111,6 +111,9 @@ FIELD_MAP = {
     "Check_Latest": "check_latest",
     "Helm_Values_File": "helm_values_file",
     "Extra_Manifests": "extra_manifests",
+    "Library_GitHub": "library_github",
+    "Current_Library_Version": "current_library_version",
+    "Latest_Library_Version": "latest_library_version",
 }
 YAML_TO_FIELD = {v: k for k, v in FIELD_MAP.items()}
 
@@ -253,14 +256,9 @@ class VersionManager:
 
         if check_latest == "github_release" or check_latest == "github_tag":
             if github_repo and github_repo.strip():
-                if app_name == "konnected":
-                    latest_version = get_konnected_version("latest", None, github_repo)
-                elif app_name == "airgradient":
-                    latest_version = get_airgradient_version("latest", None, github_repo)
-                else:
-                    latest_version = self._get_github_version_for_app(
-                        app_name, github_repo, check_latest
-                    )
+                latest_version = self._get_github_version_for_app(
+                    app_name, github_repo, check_latest
+                )
         elif check_latest == "docker_hub":
             if dockerhub_repo and dockerhub_repo.strip():
                 if app_name == "cnpg" and "postgres-containers" in dockerhub_repo:
@@ -309,6 +307,7 @@ class VersionManager:
         current_version = None
         latest_version = None
         firmware_update_available = False
+        library_current_version = None
 
         if check_current == "api":
             if app_name == "homeassistant":
@@ -317,15 +316,20 @@ class VersionManager:
             elif app_name == "esphome":
                 if url:
                     current_version = get_esphome_version(url)
-            elif app_name == "ble-proxy":
-                current_version = get_ble_proxy_version(instance, url)
+            elif app_name in ("ble-proxy", "co2", "m5-echo", "esp-heat-control"):
+                encryption_key = app_data.get("Esphome_Key", "")
+                current_version = get_ble_proxy_version(instance, url, encryption_key)
             elif app_name == "konnected":
-                current_version = get_konnected_current_version(instance, url)
+                result = get_konnected_current_version(instance, url)
+                if isinstance(result, dict):
+                    current_version = result.get("esphome_version")
+                    library_current_version = result.get("library_version")
             elif app_name == "airgradient":
                 encryption_key = app_data.get("Esphome_Key", "")
-                current_version = get_airgradient_current_version(
-                    instance, url, encryption_key
-                )
+                result = get_airgradient_current_version(instance, url, encryption_key)
+                if isinstance(result, dict):
+                    current_version = result.get("esphome_version")
+                    library_current_version = result.get("library_version")
             elif app_name == "traefik":
                 current_version = get_traefik_version(instance, url)
             elif app_name == "opnsense":
@@ -458,7 +462,7 @@ class VersionManager:
             elif app_name == "wyoming-satellite":
                 current_version = get_wyoming_satellite_version(instance, url)
 
-        return current_version, latest_version, firmware_update_available
+        return current_version, latest_version, firmware_update_available, library_current_version
 
     def check_single_application(self, idx: int):
         app_data = self.get_row_data(idx)
@@ -468,11 +472,12 @@ class VersionManager:
         check_latest = app_data.get("Check_Latest", "")
         github_repo = app_data.get("GitHub", "")
         dockerhub_repo = app_data.get("DockerHub", "")
+        library_github = app_data.get("Library_GitHub", "")
 
         print(f"Checking {app_name} ({instance})...")
 
         if check_latest == "proxmox":
-            current_version, ssh_latest_version, firmware_update_available = (
+            current_version, ssh_latest_version, firmware_update_available, library_current_version = (
                 self.get_current_version(app_data)
             )
             latest_version = get_proxmox_latest_version(
@@ -483,17 +488,28 @@ class VersionManager:
             latest_version = self.get_latest_version(
                 app_name, check_latest, github_repo, dockerhub_repo, version_pin
             )
-            current_version, ssh_latest_version, firmware_update_available = (
+            current_version, ssh_latest_version, firmware_update_available, library_current_version = (
                 self.get_current_version(app_data)
             )
 
         if ssh_latest_version:
             latest_version = ssh_latest_version
 
+        library_latest_version = None
+        if library_github and library_github.strip():
+            if app_name == "konnected":
+                library_latest_version = get_konnected_version(instance, None, library_github)
+            elif app_name == "airgradient":
+                library_latest_version = get_airgradient_version(instance, None, library_github)
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         updates = {"Last_Checked": timestamp}
         updates["Current_Version"] = current_version if current_version else ""
         updates["Latest_Version"] = latest_version if latest_version else ""
+
+        if library_current_version is not None or library_latest_version is not None:
+            updates["Current_Library_Version"] = library_current_version if library_current_version else ""
+            updates["Latest_Library_Version"] = library_latest_version if library_latest_version else ""
 
         if firmware_update_available:
             updates["Notes"] = "Firmware update available"
@@ -528,6 +544,10 @@ class VersionManager:
         elif current_version and not latest_version:
             status = "Current Version"
 
+        if status == "Up to Date" and library_current_version and library_latest_version:
+            if library_current_version != library_latest_version:
+                status = "Update Available"
+
         updates["Status"] = status
         self.update_row_data(idx, updates)
 
@@ -537,6 +557,11 @@ class VersionManager:
 
         print(f"  Current: {current_display}")
         print(f"  Latest: {latest_display}")
+        if library_current_version or library_latest_version:
+            lib_current_display = library_current_version if library_current_version else "N/A"
+            lib_latest_display = library_latest_version if library_latest_version else "N/A"
+            print(f"  Library Current: {lib_current_display}")
+            print(f"  Library Latest: {lib_latest_display}")
         print(f"  Status: {icon} {status}")
         print()
 
@@ -755,10 +780,14 @@ class VersionManager:
             if upgrade_method == "ansible-esphome":
                 if launched > 0:
                     print(f"  Skipping {label}: ESPHome AWX job already launched for all instances")
+                    if not dry_run:
+                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                     skipped += 1
                     continue
                 print(f"  Upgrading all {app_name} devices via AWX (method: {upgrade_method})...")
-                success = trigger_awx_esphome_upgrade(app_name, instance, dry_run=dry_run)
+                esphome_target_map = {"konnected": "garage-door-opener", "esp-heat-control": "heat-control"}
+                esphome_target = esphome_target_map.get(app_name, app_name)
+                success = trigger_awx_esphome_upgrade(esphome_target, instance, dry_run=dry_run)
                 if success:
                     launched += 1
                     if not dry_run:

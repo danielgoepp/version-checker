@@ -23,33 +23,37 @@ def get_konnected_current_version(instance, url=None):
                 await api.connect(login=False)
 
                 device_info = await api.device_info()
-                entities = await api.list_entities_services()
-
                 await api.disconnect()
 
-                if hasattr(device_info, 'project_version') and device_info.project_version:
-                    return device_info.project_version
-
-                if hasattr(device_info, 'firmware_version') and device_info.firmware_version:
-                    return device_info.firmware_version
+                esphome_version = None
+                library_version = None
 
                 if hasattr(device_info, 'esphome_version') and device_info.esphome_version:
-                    return device_info.esphome_version
+                    esphome_version = device_info.esphome_version
 
-                return None
+                if hasattr(device_info, 'project_version') and device_info.project_version:
+                    library_version = device_info.project_version
+
+                return {"esphome_version": esphome_version, "library_version": library_version}
 
             except Exception as e:
                 return f"Error: {str(e)}"
 
         try:
-            version = asyncio.run(get_esphome_device_info())
+            result = asyncio.run(get_esphome_device_info())
 
-            if version and not version.startswith("Error:"):
-                print_version(instance, f"ESPHome version: {version}")
-                return version
-            elif version:
-                print_error(instance, version)
+            if isinstance(result, str) and result.startswith("Error:"):
+                print_error(instance, result)
                 return None
+            elif isinstance(result, dict):
+                esphome_version = result.get("esphome_version")
+                library_version = result.get("library_version")
+                if esphome_version:
+                    print_version(instance, f"ESPHome: {esphome_version}, Library: {library_version}")
+                    return result
+                else:
+                    print_error(instance, "No ESPHome version found in device response")
+                    return None
             else:
                 print_error(instance, "No version info found in device response")
                 return None

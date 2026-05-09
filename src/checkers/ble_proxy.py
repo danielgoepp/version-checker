@@ -1,7 +1,18 @@
+import base64
 from .utils import print_error, print_version
 
 
-def get_ble_proxy_version(instance, url=None):
+def _is_valid_base64(s):
+    if not s or not s.strip():
+        return False
+    try:
+        base64.b64decode(s.strip(), validate=True)
+        return True
+    except Exception:
+        return False
+
+
+def get_ble_proxy_version(instance, url=None, encryption_key=None):
     if not url:
         print_error(instance, "No device URL configured")
         return None
@@ -20,7 +31,12 @@ def get_ble_proxy_version(instance, url=None):
 
         async def get_device_info():
             try:
-                api = aioesphomeapi.APIClient(hostname, 6053, "")
+                if encryption_key and _is_valid_base64(encryption_key):
+                    api = aioesphomeapi.APIClient(
+                        hostname, 6053, password="", noise_psk=encryption_key.strip()
+                    )
+                else:
+                    api = aioesphomeapi.APIClient(hostname, 6053, "")
                 await api.connect(login=False)
                 device_info = await api.device_info()
                 await api.disconnect()
