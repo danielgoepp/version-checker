@@ -28,7 +28,7 @@ def wait_for_awx_job(job_id: int, instance: str, api_token: str) -> bool:
     headers = {"Authorization": f"Bearer {api_token}"}
     job_url = f"{AWX_BASE_URL}/api/v2/jobs/{job_id}/"
 
-    print(f"  Waiting for job {job_id}...", flush=True)
+    print(f"  Waiting for job {job_id}...", end="", flush=True)
     elapsed = 0
     while elapsed < _POLL_TIMEOUT:
         time.sleep(_POLL_INTERVAL)
@@ -38,23 +38,25 @@ def wait_for_awx_job(job_id: int, instance: str, api_token: str) -> bool:
             resp.raise_for_status()
             data = resp.json()
         except requests.RequestException as e:
+            print()
             print_error(instance, f"Error polling job {job_id}: {e}")
             continue
 
         status = data.get("status", "unknown")
         if status not in _TERMINAL_STATUSES:
-            print(f"  [{elapsed}s] {status}...", flush=True)
+            print(".", end="", flush=True)
             continue
 
         job_elapsed = data.get("elapsed")
         elapsed_str = f"{job_elapsed:.1f}s" if job_elapsed is not None else f"{elapsed}s"
         if status == "successful":
-            print(f"  Job {job_id} succeeded ({elapsed_str})")
+            print(f" succeeded ({elapsed_str})")
         else:
-            print(f"  Job {job_id} {status} ({elapsed_str})")
+            print(f" {status} ({elapsed_str})")
 
         return status == "successful"
 
+    print()
     print_error(instance, f"Job {job_id} timed out after {_POLL_TIMEOUT}s")
     return False
 
