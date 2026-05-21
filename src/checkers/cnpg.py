@@ -7,7 +7,7 @@ from .utils import http_get
 def get_cnpg_version(instance, context=None, namespace=None):
     if instance == 'operator':
         return _get_cnpg_operator_version(instance, context=context, namespace=namespace)
-    elif instance == 'plugin-barman-cloud-prod':
+    elif instance == 'plugin-barman-cloud':
         return get_barman_cloud_version(instance, context=context, namespace=namespace)
     else:
         return _get_postgres_cluster_version(instance, context=context, namespace=namespace)
