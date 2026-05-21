@@ -7,6 +7,8 @@ from .utils import http_get
 def get_cnpg_version(instance, context=None, namespace=None):
     if instance == 'operator':
         return _get_cnpg_operator_version(instance, context=context, namespace=namespace)
+    elif instance == 'plugin-barman-cloud-prod':
+        return get_barman_cloud_version(instance, context=context, namespace=namespace)
     else:
         return _get_postgres_cluster_version(instance, context=context, namespace=namespace)
 
@@ -81,6 +83,43 @@ def _get_cnpg_operator_version(instance, context=None, namespace=None):
                         return version
 
         print(f"  {instance}: Could not find cloudnative-pg image")
+        return None
+
+    except json.JSONDecodeError as e:
+        print(f"  {instance}: Failed to parse kubectl output: {e}")
+        return None
+    except subprocess.TimeoutExpired:
+        print(f"  {instance}: Timeout getting version")
+        return None
+    except Exception as e:
+        print(f"  {instance}: Error getting version - {e}")
+        return None
+
+
+def get_barman_cloud_version(instance, context=None, namespace=None):
+    try:
+        ns = namespace or "cnpg-system"
+        cmd = _kubectl_cmd(context, "get", "pods", "-n", ns, "-o", "json")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+
+        if result.returncode != 0:
+            print(f"  {instance}: Error getting plugin-barman-cloud pods")
+            return None
+
+        pods_data = json.loads(result.stdout)
+
+        for pod in pods_data.get('items', []):
+            containers = pod.get('spec', {}).get('containers', [])
+            for container in containers:
+                image = container.get('image', '')
+                if 'plugin-barman-cloud' in image:
+                    version_match = re.search(r"plugin-barman-cloud:v?(\d+\.\d+\.\d+)", image)
+                    if version_match:
+                        version = version_match.group(1)
+                        print(f"  {instance}: {version}")
+                        return version
+
+        print(f"  {instance}: Could not find plugin-barman-cloud image")
         return None
 
     except json.JSONDecodeError as e:
