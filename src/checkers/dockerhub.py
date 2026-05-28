@@ -1,6 +1,5 @@
 from functools import lru_cache
 from .utils import http_get
-from datetime import datetime
 import re
 
 
@@ -47,20 +46,11 @@ def _get_dockerhub_latest_version_impl(repository, version_pattern=None, exclude
 
         if versions:
             def version_key(v):
-                # MinIO uses date-based tags (YYYY-MM-DDTHH-MM-SSZ) instead of semver
-                if 'T' in v and 'Z' in v:
-                    try:
-                        date_part = v.replace('-', ':', 2).replace('-', ':', 1)
-                        date_part = date_part.replace(':', '-', 2)
-                        return datetime.strptime(date_part, "%Y-%m-%dT%H:%M:%SZ")
-                    except (ValueError, AttributeError):
-                        return v
-                else:
-                    try:
-                        parts = v.split('.')
-                        return tuple(int(part) for part in parts)
-                    except (ValueError, AttributeError):
-                        return v
+                try:
+                    parts = v.split('.')
+                    return tuple(int(part) for part in parts)
+                except (ValueError, AttributeError):
+                    return v
 
             versions.sort(key=version_key, reverse=True)
             return versions[0]

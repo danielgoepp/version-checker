@@ -200,23 +200,3 @@ def get_uptime_kuma_version(instance, context=None, namespace=None):
     return checker.get_version_from_image("deployment", "uptime-kuma", "louislam/uptime-kuma")
 
 
-def get_minio_operator_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "minio-operator", context=context)
-    return checker.get_version_from_image("deployment", "minio-operator", "minio/operator")
-
-
-def get_minio_kubectl_version(instance, context=None, namespace=None):
-    ns = namespace or "minio-tenant-goepp"
-    checker = KubernetesChecker(instance, namespace=ns, context=context)
-    pod_name = checker.find_pod("minio-goepp-pool-0")
-
-    if not pod_name:
-        return None
-
-    description = checker.describe_resource("pod", pod_name)
-    if description:
-        image_checker = ImageVersionChecker(instance, namespace=ns, context=context)
-        return image_checker.get_image_version_from_description(description, "minio",
-                                                                version_pattern=r"RELEASE\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)")
-
-    return None
