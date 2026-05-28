@@ -200,3 +200,8 @@ def get_uptime_kuma_version(instance, context=None, namespace=None):
     return checker.get_version_from_image("deployment", "uptime-kuma", "louislam/uptime-kuma")
 
 
+def get_garage_version(instance, context=None, namespace=None):
+    checker = ImageVersionChecker(instance, namespace=namespace or "garage", context=context)
+    return checker.get_version_from_image("deployment", "garage", "dxflrs/garage")
+
+

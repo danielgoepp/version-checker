@@ -38,6 +38,7 @@ from src.checkers.kubectl import (
     get_unpoller_version,
     get_certmanager_version,
     get_postfix_version,
+    get_garage_version,
 )
 from src.checkers.cnpg import get_cnpg_version, get_cnpg_postgres_latest_version
 from src.checkers.server_status import check_server_status
@@ -417,6 +418,8 @@ class VersionManager:
                 current_version = get_k3s_current_version(instance, context=context)
             elif app_name == "postfix":
                 current_version = get_postfix_version(instance, context=context, namespace=namespace)
+            elif app_name == "garage":
+                current_version = get_garage_version(instance, context=context, namespace=namespace)
             elif app_name == "n8n":
                 current_version = get_n8n_version_kubectl(instance, context=context, namespace=namespace)
             elif app_name == "openclaw":
