@@ -731,6 +731,7 @@ class VersionManager:
         launched = 0
         manifests_updated = 0
         skipped = 0
+        instance_filter = instance
 
         for idx in matching:
             app_data = self.get_row_data(idx)
@@ -774,9 +775,13 @@ class VersionManager:
                         self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                     skipped += 1
                     continue
-                print(f"  Upgrading all {app_name} devices via AWX (method: {upgrade_method})...")
                 esphome_target_map = {"konnected": "garage-door-opener", "esp-heat-control": "heat-control"}
                 esphome_target = esphome_target_map.get(app_name, app_name)
+                if instance_filter:
+                    esphome_target = f"{esphome_target}-{instance}"
+                    print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
+                else:
+                    print(f"  Upgrading all {app_name} devices via AWX (method: {upgrade_method})...")
                 success = trigger_awx_esphome_upgrade(esphome_target, instance, dry_run=dry_run)
                 if success:
                     launched += 1
