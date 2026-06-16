@@ -677,7 +677,6 @@ class VersionManager:
     def show_updates(self):
         updates = []
         max_widths = {
-            "index": 4,
             "name": len("Name"),
             "instance": len("Instance"),
             "current": len("Current"),
@@ -709,14 +708,14 @@ class VersionManager:
         print("\nApplications Needing Updates:")
         print("=" * total_width)
         print(
-            f"{'#':<{max_widths['index']}} {'Name':<{max_widths['name']}} {'Instance':<{max_widths['instance']}} {'Current':<{max_widths['current']}} {'Latest':<{max_widths['latest']}} {'':<{max_widths['status']}}"
+            f"{'Name':<{max_widths['name']}} {'Instance':<{max_widths['instance']}} {'Current':<{max_widths['current']}} {'Latest':<{max_widths['latest']}} {'':<{max_widths['status']}}"
         )
         print("-" * total_width)
 
-        for index, data in enumerate(updates):
+        for data in updates:
             status_icon = self.STATUS_ICONS.get(data["status"], "")
             print(
-                f"{index:<{max_widths['index']}} {data['name']:<{max_widths['name']}} {data['instance']:<{max_widths['instance']}} {data['current']:<{max_widths['current']}} {data['latest']:<{max_widths['latest']}} {status_icon:<{max_widths['status']}}"
+                f"{data['name']:<{max_widths['name']}} {data['instance']:<{max_widths['instance']}} {data['current']:<{max_widths['current']}} {data['latest']:<{max_widths['latest']}} {status_icon:<{max_widths['status']}}"
             )
 
         print(f"\nTotal: {len(updates)} applications")
