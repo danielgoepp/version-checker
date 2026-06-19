@@ -75,9 +75,11 @@ def check_for_samba_updates(target_host):
     try:
         print(f"    Checking for Samba updates on {target_host}...")
 
+        remote_cmd = 'sudo -n apt-get update -q > /dev/null 2>&1; apt list --upgradable'
+
         cmd = [
             'ssh', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=no',
-            target_host, 'apt', 'list', '--upgradable'
+            target_host, remote_cmd
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)

@@ -23,7 +23,7 @@ def _check_apt_upgradable(target_host, current_kernel):
     # We detect them by comparing the metapackage's Depends to the running kernel.
     # RPi kernels upgrade in-place and DO appear in apt list --upgradable.
     remote_cmd = (
-        'apt-get update -q > /dev/null 2>&1; '
+        'sudo -n apt-get update -q > /dev/null 2>&1; '
         'apt list --upgradable 2>/dev/null; '
         'echo "===KERNEL==="; '
         'apt-cache show linux-image-generic 2>/dev/null '
