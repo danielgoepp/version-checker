@@ -313,7 +313,8 @@ class VersionManager:
                 encryption_key = app_data.get("Esphome_Key", "")
                 current_version = get_ble_proxy_version(instance, url, encryption_key)
             elif app_name == "konnected":
-                result = get_konnected_current_version(instance, url)
+                encryption_key = app_data.get("Esphome_Key", "")
+                result = get_konnected_current_version(instance, url, encryption_key)
                 if isinstance(result, dict):
                     current_version = result.get("esphome_version")
                     library_current_version = result.get("library_version")

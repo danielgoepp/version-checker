@@ -1,6 +1,6 @@
 from .utils import http_get, print_error, print_version
 
-def get_konnected_current_version(instance, url=None):
+def get_konnected_current_version(instance, url=None, encryption_key=None):
     if not url:
         print_error(instance, "No device URL configured")
         return None
@@ -17,9 +17,28 @@ def get_konnected_current_version(instance, url=None):
             print_error(instance, "Could not parse hostname from URL")
             return None
 
+        import base64
+        def is_valid_base64(s):
+            if not s or not s.strip():
+                return False
+            try:
+                base64.b64decode(s.strip(), validate=True)
+                return True
+            except Exception:
+                return False
+
         async def get_esphome_device_info():
             try:
-                api = aioesphomeapi.APIClient(hostname, 6053, "")
+                if encryption_key and is_valid_base64(encryption_key):
+                    api = aioesphomeapi.APIClient(
+                        hostname,
+                        6053,
+                        password="",
+                        noise_psk=encryption_key.strip()
+                    )
+                else:
+                    api = aioesphomeapi.APIClient(hostname, 6053, "")
+
                 await api.connect(login=False)
 
                 device_info = await api.device_info()
