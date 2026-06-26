@@ -78,6 +78,35 @@ class KubernetesChecker:
             print_error(self.instance, f"kubectl exec timed out for command: {command}")
             return None
 
+    def get_running_image_version(self, image_pattern, version_pattern=r"v?(\d+\.\d+(?:\.\d+)?)", namespace=None):
+        # Read the image actually running in the namespace's pods, not the
+        # controller spec. A controller (deployment/statefulset/daemonset) reflects
+        # the desired image from the manifest the moment it's updated, even while
+        # the old pods are still running the previous version.
+        ns = namespace or self.namespace
+        cmd = self._kubectl_cmd("get", "pods", "-o",
+                                "jsonpath={.items[*].status.containerStatuses[*].image}")
+        if ns:
+            cmd.extend(["-n", ns])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+        except subprocess.TimeoutExpired:
+            print_error(self.instance, "kubectl get pods timed out")
+            return None
+
+        if result.returncode != 0:
+            print_error(self.instance, f"kubectl get pods failed: {result.stderr.strip()}")
+            return None
+
+        version = parse_image_version(result.stdout, image_pattern, version_pattern)
+        if version:
+            print_version(self.instance, version)
+            return version
+
+        print_error(self.instance, f"Could not parse {image_pattern} version from running pods")
+        return None
+
     def describe_resource(self, resource_type, resource_name, namespace=None):
         ns = namespace or self.namespace
         cmd = self._kubectl_cmd("describe", resource_type, resource_name)

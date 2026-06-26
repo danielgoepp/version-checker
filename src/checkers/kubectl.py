@@ -29,11 +29,7 @@ class TelegrafChecker(KubernetesChecker):
 
 
 class ImageVersionChecker(KubernetesChecker):
-    def get_version_from_image(self, resource_type, resource_name, image_pattern):
-        description = self.describe_resource(resource_type, resource_name)
-        if description:
-            return self.get_image_version_from_description(description, image_pattern)
-        return None
+    pass
 
 
 class PodAPIChecker(KubernetesChecker):
@@ -60,27 +56,27 @@ def get_telegraf_version(instance, context=None, namespace=None):
 
 def get_calico_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "calico-system", context=context)
-    return checker.get_version_from_image("daemonset", "calico-node", "calico/node")
+    return checker.get_running_image_version("calico/node")
 
 
 def get_metallb_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "metallb-system", context=context)
-    return checker.get_version_from_image("deployment", "metallb-controller", "metallb/controller")
+    return checker.get_running_image_version("metallb/controller")
 
 
 def get_alertmanager_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "alertmanager", context=context)
-    return checker.get_version_from_image("statefulset", "alertmanager", "prometheus/alertmanager")
+    return checker.get_running_image_version("prometheus/alertmanager")
 
 
 def get_fluentbit_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "fluent-bit", context=context)
-    return checker.get_version_from_image("daemonset", "fluent-bit", "fluent-bit")
+    return checker.get_running_image_version("fluent-bit")
 
 
 def get_pgadmin_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "pgadmin", context=context)
-    return checker.get_version_from_image("deployment", "pgadmin-pgadmin4", "pgadmin4")
+    return checker.get_running_image_version("pgadmin4")
 
 
 def get_mosquitto_version(instance, context=None, namespace=None):
@@ -188,20 +184,16 @@ def get_certmanager_version(instance, context=None, namespace=None):
 
 def get_postfix_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "postfix", context=context)
-    description = checker.describe_resource("deployment", "postfix")
-    if not description:
-        return None
-    return checker.get_image_version_from_description(description, "boky/postfix", r"(\d+\.\d+\.\d+)")
-
+    return checker.get_running_image_version("boky/postfix", r"(\d+\.\d+\.\d+)")
 
 
 def get_uptime_kuma_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "uptime-kuma", context=context)
-    return checker.get_version_from_image("deployment", "uptime-kuma", "louislam/uptime-kuma")
+    return checker.get_running_image_version("louislam/uptime-kuma")
 
 
 def get_garage_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "garage", context=context)
-    return checker.get_version_from_image("deployment", "garage", "dxflrs/garage")
+    return checker.get_running_image_version("dxflrs/garage")
 
 

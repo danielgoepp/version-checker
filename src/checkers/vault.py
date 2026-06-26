@@ -6,12 +6,12 @@ from .utils import print_error
 
 def get_vault_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "vault", context=context)
-    return checker.get_version_from_image("statefulset", "vault", "hashicorp/vault")
+    return checker.get_running_image_version("hashicorp/vault")
 
 
 def get_vault_k8s_version(instance, context=None, namespace=None):
     checker = ImageVersionChecker(instance, namespace=namespace or "vault", context=context)
-    return checker.get_version_from_image("deployment", "vault-agent-injector", "hashicorp/vault-k8s")
+    return checker.get_running_image_version("hashicorp/vault-k8s")
 
 
 def restart_vault_pod(instance, context=None, namespace=None, dry_run=False):
