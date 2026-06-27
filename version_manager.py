@@ -79,11 +79,11 @@ from src.checkers.ollama import get_ollama_version
 from src.checkers.docker import get_docker_version
 from src.checkers.portainer import get_portainer_version
 from src.checkers.open_webui import get_open_webui_version
-from src.checkers.vault import get_vault_version as get_vault_kubectl_version, get_vault_k8s_version, restart_vault_pod
+from src.checkers.vault import get_vault_version as get_vault_kubectl_version, get_vault_k8s_version
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
-from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, trigger_awx_esphome_upgrade, trigger_vault_unseal, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
+from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, trigger_awx_esphome_upgrade, trigger_vault_upgrade_workflow, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
 import config
 
 
@@ -913,18 +913,13 @@ class VersionManager:
                     print(f"  Skipping helm values update for {label} (--force)")
 
                 if upgrade_method in AWX_UPGRADE_METHODS:
-                    print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
-                    awx_key = f"{app_name}-{instance}"
-                    success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
-
-                    if success and app_name == "vault" and instance == "prod":
-                        context = app_data.get("Context", "") or None
-                        namespace = app_data.get("Namespace", "") or None
-                        print(f"  Restarting vault pod for {label}...")
-                        pod_ok = restart_vault_pod(instance, context=context, namespace=namespace, dry_run=dry_run)
-                        if pod_ok:
-                            print(f"  Triggering vault unseal for {label}...")
-                            trigger_vault_unseal(instance, dry_run=dry_run)
+                    if app_name == "vault" and instance == "prod":
+                        print(f"  Triggering AWX vault upgrade workflow for {label}...")
+                        success = trigger_vault_upgrade_workflow(instance, dry_run=dry_run)
+                    else:
+                        print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
+                        awx_key = f"{app_name}-{instance}"
+                        success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
 
                     if success:
                         launched += 1

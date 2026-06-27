@@ -12,7 +12,7 @@ AWX_OPS_UPGRADE_ESPHOME_TEMPLATE_ID = 31
 AWX_OPS_UPGRADE_K3S_TEMPLATE_ID = 32
 AWX_OPS_UPGRADE_SERVER_TEMPLATE_ID = 47
 AWX_OPS_UPGRADE_LLM_TEMPLATE_ID = 48
-AWX_OPS_VAULT_UNSEAL_TEMPLATE_ID = 49
+AWX_OPS_VAULT_UPGRADE_WORKFLOW_ID = 50
 
 AWX_UPGRADE_METHODS = {"ansible-helm", "ansible-manifest", "ansible-apt", "ansible-llm", "ansible-esphome"}
 MANIFEST_UPGRADE_METHODS = {"ansible-manifest"}
@@ -24,9 +24,9 @@ _POLL_INTERVAL = 5
 _POLL_TIMEOUT = 600
 
 
-def wait_for_awx_job(job_id: int, instance: str, api_token: str) -> bool:
+def wait_for_awx_job(job_id: int, instance: str, api_token: str, resource: str = "jobs") -> bool:
     headers = {"Authorization": f"Bearer {api_token}"}
-    job_url = f"{AWX_BASE_URL}/api/v2/jobs/{job_id}/"
+    job_url = f"{AWX_BASE_URL}/api/v2/{resource}/{job_id}/"
 
     print(f"  Waiting for job {job_id}...", end="", flush=True)
     elapsed = 0
@@ -205,32 +205,32 @@ def trigger_awx_upgrade(app_name: str, instance: str, dry_run: bool = False) -> 
         return False
 
 
-def trigger_vault_unseal(instance: str, dry_run: bool = False) -> bool:
+def trigger_vault_upgrade_workflow(instance: str, dry_run: bool = False) -> bool:
     api_token = config.AWX_API_TOKENS.get("prod")
     if not api_token:
         print_error(instance, "No AWX API token configured for 'prod' instance")
         return False
 
-    url = f"{AWX_BASE_URL}/api/v2/job_templates/{AWX_OPS_VAULT_UNSEAL_TEMPLATE_ID}/launch/"
+    url = f"{AWX_BASE_URL}/api/v2/workflow_job_templates/{AWX_OPS_VAULT_UPGRADE_WORKFLOW_ID}/launch/"
     headers = {
         "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json",
     }
 
     if dry_run:
-        print(f"  [DRY RUN] Would trigger AWX vault unseal job (template {AWX_OPS_VAULT_UNSEAL_TEMPLATE_ID})")
+        print(f"  [DRY RUN] Would trigger AWX vault upgrade workflow (template {AWX_OPS_VAULT_UPGRADE_WORKFLOW_ID})")
         return True
 
     try:
         response = requests.post(url, headers=headers, timeout=15, verify=True)
         response.raise_for_status()
         data = response.json()
-        job_id = data.get("job") or data.get("id")
+        job_id = data.get("workflow_job") or data.get("id")
         if not job_id:
-            print(f"  Vault unseal job launched (no job ID in response)")
+            print(f"  Vault upgrade workflow launched (no job ID in response)")
             return True
-        print(f"  Vault unseal job launched: {AWX_BASE_URL}/#/jobs/playbook/{job_id}/details")
-        return wait_for_awx_job(job_id, instance, api_token)
+        print(f"  Vault upgrade workflow launched: {AWX_BASE_URL}/#/jobs/workflow/{job_id}/details")
+        return wait_for_awx_job(job_id, instance, api_token, resource="workflow_jobs")
     except requests.HTTPError as e:
         print_error(instance, f"AWX API error ({e.response.status_code}): {e.response.text[:200]}")
         return False
