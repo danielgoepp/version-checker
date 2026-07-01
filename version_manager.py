@@ -732,6 +732,7 @@ class VersionManager:
         manifests_updated = 0
         skipped = 0
         instance_filter = instance
+        vault_workflow_launched = False
 
         for idx in matching:
             app_data = self.get_row_data(idx)
@@ -913,9 +914,20 @@ class VersionManager:
                     print(f"  Skipping helm values update for {label} (--force)")
 
                 if upgrade_method in AWX_UPGRADE_METHODS:
-                    if app_name == "vault" and instance == "prod":
+                    if app_name == "vault":
+                        # Both vault instances (server + vault-k8s injector) are the
+                        # same Helm release sharing one values file, so the workflow
+                        # only needs to fire once per upgrade run.
+                        if vault_workflow_launched:
+                            print(f"  Skipping {label}: vault upgrade workflow already launched")
+                            if not dry_run:
+                                self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                            skipped += 1
+                            continue
                         print(f"  Triggering AWX vault upgrade workflow for {label}...")
                         success = trigger_vault_upgrade_workflow(instance, dry_run=dry_run)
+                        if success:
+                            vault_workflow_launched = True
                     else:
                         print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
                         awx_key = f"{app_name}-{instance}"
