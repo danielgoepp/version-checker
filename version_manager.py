@@ -22,6 +22,7 @@ from src.checkers.airgradient import (
 )
 from src.checkers.opnsense import get_opnsense_version
 from src.checkers.k3s import get_k3s_current_version
+from src.checkers.linux_kernel import is_kernel_only_update
 from src.checkers.zigbee2mqtt import get_zigbee2mqtt_version
 from src.checkers.kopia import get_kopia_version
 from src.checkers.kubectl import (
@@ -748,6 +749,12 @@ class VersionManager:
                 continue
 
             if upgrade_method == "ansible-apt":
+                category = app_data.get("Category", "") or ""
+                latest = app_data.get("Latest_Version", "") or ""
+                if not force and category == "Kubernetes" and is_kernel_only_update(latest):
+                    print(f"  Skipping {label}: only a kernel update pending (k3s servers reboot for kernels via separate orchestration)")
+                    skipped += 1
+                    continue
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
                 success = trigger_awx_apt_upgrade(instance, instance, dry_run=dry_run)
                 if success:

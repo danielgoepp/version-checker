@@ -183,6 +183,7 @@ The system uses two separate fields for version checking:
 - **`ansible-manifest`** upgrade method: updates the manifest file in k3s-config repo (git add/commit/push), then triggers AWX
 - **`ansible-helm`** upgrade method: triggers AWX directly (no manifest update)
 - **`ansible-esphome`** upgrade method: triggers AWX job template 31 with `target_pattern=<app_name>`; fires once for all instances (does not wait for job completion due to long compile times)
+- **`ansible-apt`** upgrade method: triggers AWX job template 47 (server apt upgrade). For k3s servers (`category: Kubernetes`), a **kernel-only** pending update (`latest_version` == `0 packages + kernel`) is skipped — those nodes reboot for kernel upgrades via separate orchestration, and a plain `apt upgrade` holds back the new kernel anyway. k3s servers still upgrade when real packages are pending (`N packages` or `N packages + kernel`). `--force` bypasses this skip.
 - **`--force`** flag: skips version comparison and manifest file update, goes straight to AWX trigger
 - **k3s_applications.yml**: All entries are individual `manifest` or `helm` entries — no `manifest-multi` looping. Each entry is `{name}-{instance}` keyed independently
 

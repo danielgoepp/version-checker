@@ -5,6 +5,13 @@ import subprocess
 _STATUS_NO_UPDATE = 'No updates'
 
 
+def is_kernel_only_update(latest_version):
+    # latest_version from get_latest_linux_kernel_version is "N packages" or
+    # "N packages + kernel". Kernel-only means zero real packages with a pending
+    # kernel update — nothing for `apt upgrade` to do (the new kernel is held back).
+    return (latest_version or "").strip() == "0 packages + kernel"
+
+
 def get_latest_linux_kernel_version(current_kernel, target_host):
     if not target_host:
         return _STATUS_NO_UPDATE
