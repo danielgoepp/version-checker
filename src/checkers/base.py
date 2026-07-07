@@ -17,11 +17,14 @@ class KubernetesChecker:
         cmd.extend(args)
         return cmd
 
-    def find_pod(self, pod_pattern, namespace=None):
+    def find_pod(self, pod_pattern, namespace=None, exact=False):
         ns = namespace or self.namespace
         cmd = self._kubectl_cmd("get", "pods", "-o", "json")
         if ns:
             cmd.extend(["-n", ns])
+
+        if exact:
+            pattern = re.compile(rf"^{re.escape(pod_pattern)}-[a-z0-9]+-[a-z0-9]+$")
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
@@ -36,7 +39,9 @@ class KubernetesChecker:
                 pod_name = pod.get('metadata', {}).get('name', '')
                 status = pod.get('status', {}).get('phase', '')
 
-                if pod_pattern in pod_name and status == 'Running':
+                matched = pattern.match(pod_name) if exact else pod_pattern in pod_name
+
+                if matched and status == 'Running':
                     print(f"  {self.instance}: Found pod {pod_name}")
                     return pod_name
 

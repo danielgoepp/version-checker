@@ -139,8 +139,8 @@ def get_victoriametrics_version(instance, context=None, namespace=None):
             output = checker.exec_pod_command(pod_name, "/vmagent-prod -version", container="vmagent")
             return checker.get_version_from_command_output(output)
     elif "vmsingle" in instance:
-        pod_pattern = "vmsingle"
-        pod_name = checker.find_pod(pod_pattern)
+        pod_pattern = f"vmsingle-{instance.removesuffix('-vmsingle')}"
+        pod_name = checker.find_pod(pod_pattern, exact=True)
         if pod_name:
             output = checker.exec_pod_command(pod_name, "/victoria-metrics-prod -version")
             return checker.get_version_from_command_output(output)
