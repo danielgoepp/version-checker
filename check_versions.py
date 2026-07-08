@@ -109,6 +109,11 @@ def main():
         action="store_true",
         help="Show what would happen without making any changes (use with --app --upgrade)",
     )
+    parser.add_argument(
+        "--tui",
+        action="store_true",
+        help="Launch the interactive terminal UI",
+    )
 
     try:
         import argcomplete
@@ -128,7 +133,11 @@ def main():
         print("Failed to load vault notes. Check vault path and permissions.")
         sys.exit(1)
 
-    if args.check_all:
+    if args.tui:
+        from src.tui.app import run_tui
+
+        run_tui(vm)
+    elif args.check_all:
         vm.check_all_applications()
     elif args.summary:
         vm.show_summary()

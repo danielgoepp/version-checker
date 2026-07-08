@@ -74,6 +74,28 @@ pip install -r requirements.txt
 ./check_versions.py --app "appname" --upgrade --force
 ```
 
+### Terminal UI
+
+```bash
+./check_versions.py --tui
+```
+
+Launches a full-screen, keyboard-driven interface (built with [Textual](https://textual.textualize.io/)) for browsing and upgrading applications. It starts in "Updates" mode, listing only applications with an available update.
+
+| Key | Action |
+| --- | ------ |
+| `↑` / `↓` | Move the cursor through the list |
+| `Space` | Toggle selection of the highlighted application |
+| `a` | Select/deselect all visible applications |
+| `v` | Toggle between "Updates" view and "All Applications" view |
+| `c` | Run a check-all across every enabled application |
+| `Shift+C` | Recheck just the selected (or highlighted) application(s) — no full check-all needed |
+| `u` | Upgrade all selected applications (with confirmation prompt); automatically rechecks each afterward |
+| `r` | Refresh the list from current data |
+| `q` | Quit |
+
+The TUI is a view/control layer on top of the same `VersionManager` used by the CLI — it does not change any existing check or upgrade behavior.
+
 ## Obsidian Note Structure
 
 Each application is stored as a `.md` file in the Obsidian vault with YAML frontmatter fields:
@@ -145,8 +167,9 @@ Applications that run across multiple environments are tracked separately by ins
 
 - **`version_manager.py`** - Core Python class handling all version checking logic
 - **`check_versions.py`** - Command-line interface with multi-instance support
-- **`requirements.txt`** - Python dependencies (requests, paho-mqtt, PyYAML)
+- **`requirements.txt`** - Python dependencies (requests, paho-mqtt, PyYAML, textual)
 - **`config.py`** - Configuration and credentials (not committed to git)
+- **`src/tui/`** - Interactive terminal UI (Textual app), launched via `--tui`
 - **`src/checkers/`** - Directory containing modular version checker modules
   - **`base.py`** - Base classes (KubernetesChecker, APIChecker) with secure subprocess handling
   - **`github.py`** - GitHub release and tag API functions with LRU caching

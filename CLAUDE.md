@@ -11,6 +11,7 @@ Note: This is for my specific infrastructure only, not a general purpose app. Th
 - **Note Format**: Each application is a `.md` file with YAML frontmatter containing all version data
 - **Modular Design**: Individual checkers in `src/checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
+- **Terminal UI**: `check_versions.py --tui` launches a full-screen interactive view (`src/tui/app.py`, built with Textual) on top of the same `VersionManager` — no separate data path or business logic
 - **Virtual Environment**: Always use `source .venv/bin/activate`
 - **Unified Kernel Checking**: Single `linux_kernel.py` handles all Linux distributions
 - **API Caching**: LRU caching on GitHub and Docker Hub API calls for ~383,000x speedup on repeated calls
@@ -229,6 +230,21 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 ```
 `--instance` completions are filtered to the selected `--app` when both are provided.
 
+## Terminal UI
+`check_versions.py --tui` launches a full-screen Textual app (`src/tui/app.py`) that wraps `VersionManager` — it calls the exact same `check_all_applications()` / `upgrade_application()` methods the CLI uses, no parallel logic. It starts in an "Updates" view (only apps with `status: Update Available`), which is a read filter over `vm.notes`, not a separate data source.
+- **Navigation**: `↑`/`↓` moves the DataTable cursor; `Space` toggles selection (marked with `✓`) on the highlighted row; `a` selects/deselects all currently visible rows
+- **`v`**: toggles between "Updates" view and "All Applications" view
+- **`c`**: runs a full check-all (`vm.check_all_applications()`) in a background thread; stdout from the manager is redirected into the on-screen `RichLog` panel via `contextlib.redirect_stdout`
+- **`C`** (Shift+C): rechecks only the selected rows (or the highlighted row if nothing is selected) via `vm.check_single_application(idx)` per row — avoids a full check-all just to see whether one app changed. Bound as literal `"C"`, not `"shift+c"` — most terminals send a bare capital letter for Shift+(any letter) rather than a distinct modifier combo, and Textual's `"shift+c"` binding only matches terminals using an extended keyboard protocol (e.g. Kitty), so it silently never fires in a normal terminal
+- **`u`**: upgrades every selected row — for each, calls `vm.upgrade_application(name, instance=instance)` (no `force`, so existing skip logic for "already up to date" / kernel-only apt updates still applies); requires confirmation via a modal dialog before running (upgrades can commit/push to the k3s-config repo and trigger AWX jobs, so confirmation is deliberate). After all upgrades are triggered, each affected row is automatically rechecked — since AWX upgrades run asynchronously, this recheck may still show the pre-upgrade version if the job hasn't rolled out yet; use `C` later to check again
+- **`r`**: refreshes the visible list from current in-memory note state
+- Long-running operations (`c`, `C`, `u`) run via `App.run_worker(..., thread=True)` since the underlying checks/upgrades are blocking network/subprocess calls; UI updates from the worker thread go through `call_from_thread`
+- **Confirm dialog default**: the upgrade confirmation modal defaults focus to "Cancel" (not the destructive action) so pressing Enter without deliberately tabbing to "Upgrade" is safe
+- **Background work always clears busy state**: Textual widgets treat `disabled or loading` as "non-interactive", so `table.loading = True` while a background op runs also blocks arrow-key/selection input on the DataTable. All background work goes through `_run_background()`, which wraps the call in `try/except` (logging any exception into the RichLog instead of losing it) and a `finally` that guarantees `_on_background_done()` — and therefore `table.loading = False` — always runs, even if `vm.check_single_application()` / `vm.upgrade_application()` raises. Without this, any exception (a real possibility against live infra — timeouts, unexpected API responses) permanently freezes the table with no visible error
+- **Focus must be explicitly restored after background work**: Textual's `Widget.focusable` excludes any widget with `loading = True`, so during a long-running check/upgrade the DataTable becomes unfocusable and focus can drift elsewhere (e.g. to the `RichLog`, which is also focusable). Textual does not automatically restore focus once `loading` clears, so a long real-world wait (AWX jobs can poll for minutes) can leave focus stranded off the table — arrow keys then get consumed by whatever now has focus (or nothing) instead of moving the table cursor, while unrelated app-level bindings (`v`, `c`, `q`) keep working since they don't depend on which widget is focused. `_on_background_done()` explicitly calls `self.query_one(DataTable).focus()` to make the restoration deterministic instead of relying on Textual's focus-chain behavior
+- **Live progress lines**: some checker code (e.g. `wait_for_awx_job` in `upgrade.py`) uses `print(..., end="")` to append dots to the same terminal line while polling. `RichLog.write()` has no such concept — every call adds a new line — so `_LogWriter` buffers any text with no trailing newline and shows it in a separate one-line `#status` `Static` widget that gets updated in place; only completed (newline-terminated) lines get appended to the scrolling `RichLog`
+- **`_LogWriter` thread-safety**: `redirect_stdout` patches `sys.stdout` process-wide, not per-thread, so a stray `print()` on the app's own thread during a background operation must fall back to a direct widget write instead of `call_from_thread` (which raises if called from the app's own thread)
+
 ## Command Interface
 ```bash
 # Check all applications
@@ -236,6 +252,9 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 
 # Check all with custom worker count
 ./check_versions.py --check-all --workers 20
+
+# Launch the interactive terminal UI (starts in Updates view)
+./check_versions.py --tui
 
 # Show summary with status counts
 ./check_versions.py --summary
