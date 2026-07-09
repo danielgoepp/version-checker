@@ -3,9 +3,9 @@ from contextlib import redirect_stdout
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Grid
+from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Header, Label, RichLog, Static
+from textual.widgets import Button, DataTable, Footer, Header, Input, Label, RichLog, Static, Switch
 
 
 class ConfirmScreen(ModalScreen[bool]):
@@ -55,6 +55,128 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def action_cancel(self) -> None:
         self.dismiss(False)
+
+
+EDITABLE_FIELDS = [
+    "Name", "Instance", "Enabled", "Type", "Category", "Context", "Namespace",
+    "Version_Pin", "Upgrade", "Target", "GitHub", "DockerHub",
+    "Check_Current", "Check_Latest", "Esphome_Key", "Library_GitHub",
+    "Helm_Values_File", "Extra_Manifests",
+    "Current_Version", "Latest_Version", "Status", "Last_Checked", "Last_Upgraded",
+    "Current_Library_Version", "Latest_Library_Version", "Notes",
+]
+
+
+class EditScreen(ModalScreen[dict | None]):
+    """Form for editing every field of a single application row.
+
+    Extra_Manifests is a list in storage but edited as one path per line; a
+    blank Input for a text field clears it back to NULL on save (matching
+    VersionManager.update_row_data's existing "" -> None convention).
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    CSS = """
+    EditScreen {
+        align: center middle;
+    }
+    #edit-dialog {
+        width: 90;
+        height: 40;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    #edit-title {
+        height: 1;
+        content-align: center middle;
+        text-style: bold;
+    }
+    #edit-fields {
+        height: 1fr;
+    }
+    .field-row {
+        height: 3;
+    }
+    .field-label {
+        width: 22;
+        content-align: left middle;
+    }
+    .field-row Input {
+        width: 1fr;
+    }
+    #edit-buttons {
+        height: 3;
+        align: right middle;
+    }
+    #edit-buttons Button {
+        margin-left: 2;
+    }
+    """
+
+    def __init__(self, row_data: dict) -> None:
+        super().__init__()
+        self.row_data = row_data
+        self._inputs: dict[str, Input] = {}
+        self._enabled_switch: Switch | None = None
+
+    def compose(self) -> ComposeResult:
+        rows = []
+        for field in EDITABLE_FIELDS:
+            value = self.row_data.get(field, "")
+            label = Label(f"{field}:", classes="field-label")
+            if field == "Enabled":
+                self._enabled_switch = Switch(value=bool(value))
+                rows.append(Horizontal(label, self._enabled_switch, classes="field-row"))
+            else:
+                display_value = "\n".join(value) if isinstance(value, list) else str(value)
+                widget = Input(value=display_value)
+                self._inputs[field] = widget
+                rows.append(Horizontal(label, widget, classes="field-row"))
+
+        yield Vertical(
+            Label(
+                f"Edit {self.row_data.get('Name', '')} ({self.row_data.get('Instance', '')})",
+                id="edit-title",
+            ),
+            VerticalScroll(*rows, id="edit-fields"),
+            Horizontal(
+                Button("Cancel", variant="primary", id="edit-cancel"),
+                Button("Save", variant="success", id="edit-save"),
+                id="edit-buttons",
+            ),
+            id="edit-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "edit-save":
+            self._save()
+        else:
+            self.dismiss(None)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+    def _save(self) -> None:
+        updates = {}
+        for field, widget in self._inputs.items():
+            original = self.row_data.get(field, "")
+            if field == "Extra_Manifests":
+                new_value = [line.strip() for line in widget.value.splitlines() if line.strip()]
+                if new_value != (original or []):
+                    updates[field] = new_value
+            else:
+                original_str = "\n".join(original) if isinstance(original, list) else str(original)
+                if widget.value != original_str:
+                    updates[field] = widget.value
+
+        if self._enabled_switch is not None:
+            new_enabled = self._enabled_switch.value
+            if new_enabled != bool(self.row_data.get("Enabled", True)):
+                updates["Enabled"] = new_enabled
+
+        self.dismiss(updates)
 
 
 class _LogWriter:
@@ -119,6 +241,7 @@ class VersionCheckerApp(App):
         Binding("c", "check_all", "Check All"),
         Binding("C", "check_selected", "Recheck Selected"),
         Binding("u", "upgrade_selected", "Upgrade Selected"),
+        Binding("e", "edit_selected", "Edit"),
         Binding("r", "refresh_view", "Refresh"),
         Binding("q", "quit", "Quit"),
     ]
@@ -297,6 +420,24 @@ class VersionCheckerApp(App):
         print("--- Rechecking upgraded application(s) (may still show the old version if the upgrade job hasn't finished rolling out) ---")
         for idx in idxs:
             self.vm.check_single_application(idx)
+
+    def action_edit_selected(self) -> None:
+        if self.busy:
+            return
+        cursor = self._cursor_idx()
+        if not cursor:
+            self.notify("No application highlighted", severity="warning")
+            return
+        idx = cursor[0]
+        row_data = self.vm.get_row_data(idx)
+        self.push_screen(EditScreen(row_data), lambda updates: self._handle_edit_result(idx, updates))
+
+    def _handle_edit_result(self, idx: int, updates: dict | None) -> None:
+        if not updates:
+            return
+        self.vm.update_row_data(idx, updates)
+        self.refresh_table()
+        self.notify("Application updated")
 
     def _on_background_done(self, message: str) -> None:
         self._set_busy(False)

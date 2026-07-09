@@ -29,6 +29,9 @@ wheels/
 .env
 .env.local
 
+# SQLite database (application state + transaction history)
+data/*.db
+
 # Excel temporary files
 ~$*.xlsx
 *.xlsx

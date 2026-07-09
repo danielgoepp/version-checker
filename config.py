@@ -83,8 +83,8 @@ UPTIME_KUMA_PASSWORD = get_optional_env('UPTIME_KUMA_PASSWORD', None, 'Uptime Ku
 # GitHub API credentials - OPTIONAL (for rate limit avoidance)
 GITHUB_API_TOKEN = get_optional_env('GITHUB_TOKEN', None, 'GitHub personal access token for API rate limit avoidance')
 
-# Obsidian vault folder containing Software notes
-OBSIDIAN_VAULT_FOLDER = get_optional_env('OBSIDIAN_VAULT_FOLDER', '/Users/dang/Documents/Goeppedia/Software', 'Path to Obsidian Software vault folder')
+# SQLite database file (application state + upgrade transaction history)
+DATABASE_PATH = get_optional_env('DATABASE_PATH', str(Path(__file__).parent / 'data' / 'version_checker.db'), 'Path to SQLite database file')
 
 # k3s-config repository root (for manifest-based upgrades)
 K3S_CONFIG_FOLDER = get_optional_env('K3S_CONFIG_FOLDER', '/Users/dang/Documents/Development/k3s-config', 'Path to k3s-config repository root')

@@ -1,14 +1,13 @@
 # Version Check Module
 
 ## Overview
-Obsidian-based software version monitoring system with multi-instance support for tracking various applications across the Goepp Lab infrastructure.
+SQLite-based software version monitoring system with multi-instance support for tracking various applications across the Goepp Lab infrastructure.
 
 Note: This is for my specific infrastructure only, not a general purpose app. The only reason I make this a public repository is for reference only. If one were to take this code and try to make it work for them, significant changes would be needed to customize it. Unless of course you run the exact tech stack in the exact same way I do.
 
 ## Architecture
 - **Language**: Python
-- **Database**: Obsidian vault markdown notes in `OBSIDIAN_VAULT_FOLDER` (default: `/Users/dang/Documents/Goeppedia/Software`)
-- **Note Format**: Each application is a `.md` file with YAML frontmatter containing all version data
+- **Database**: SQLite file at `config.DATABASE_PATH` (env: `DATABASE_PATH`, default: `data/version_checker.db` inside the repo) — two tables, `applications` and `transactions` (see `src/db.py`)
 - **Modular Design**: Individual checkers in `src/checkers/` directory with shared utilities
 - **CLI Interface**: `check_versions.py` for command-line operations
 - **Terminal UI**: `check_versions.py --tui` launches a full-screen interactive view (`src/tui/app.py`, built with Textual) on top of the same `VersionManager` — no separate data path or business logic
@@ -16,17 +15,17 @@ Note: This is for my specific infrastructure only, not a general purpose app. Th
 - **Unified Kernel Checking**: Single `linux_kernel.py` handles all Linux distributions
 - **API Caching**: LRU caching on GitHub and Docker Hub API calls for ~383,000x speedup on repeated calls
 - **Security**: No shell=True in subprocess calls - all commands use list-based construction to prevent command injection
-- **Concurrent Execution**: ThreadPoolExecutor for parallel version checking with thread-safe note writes
+- **Concurrent Execution**: ThreadPoolExecutor for parallel version checking with thread-safe row writes
 
-## Obsidian Note Structure
+## Database Schema
 
-### YAML Frontmatter Fields
-Each `.md` note in the vault uses these frontmatter keys (snake_case):
+### `applications` table
+One row per `{name, instance}` pair (`UNIQUE(name, instance)`). Columns (snake_case) map to PascalCase in code via `FIELD_MAP` in `version_manager.py`:
 
-| YAML Key | PascalCase (code) | Description |
-| -------- | ----------------- | ----------- |
+| Column | PascalCase (code) | Description |
+| ------ | ----------------- | ----------- |
 | `name` | `Name` | Application identifier (lowercase, hyphenated) |
-| `enabled` | `Enabled` | Boolean to enable/disable from checks |
+| `enabled` | `Enabled` | Boolean (stored as 0/1) to enable/disable from checks |
 | `context` | `Context` | kubectl context override |
 | `namespace` | `Namespace` | Kubernetes namespace override |
 | `instance` | `Instance` | Instance name (e.g., prod, morgspi) |
@@ -34,51 +33,45 @@ Each `.md` note in the vault uses these frontmatter keys (snake_case):
 | `category` | `Category` | Category grouping |
 | `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
 | `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply), `ansible-esphome` (ESPHome device OTA via AWX) |
-| `extra_manifests` | `Extra_Manifests` | YAML list of extra manifest paths (relative to k3s-config root) updated alongside the main manifest during `ansible-cr` upgrades |
+| `extra_manifests` | `Extra_Manifests` | JSON-encoded list of extra manifest paths (relative to k3s-config root) updated alongside the main manifest during `ansible-cr` upgrades |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
-| `esphome key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
+| `esphome_key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
 | `github` | `GitHub` | GitHub repo path (owner/repo) |
 | `dockerhub` | `DockerHub` | Docker Hub repo path (org/image) |
 | `current_version` | `Current_Version` | Detected current version |
 | `latest_version` | `Latest_Version` | Latest available version |
 | `status` | `Status` | Status string (see Status Icons) |
 | `last_checked` | `Last_Checked` | Timestamp of last check |
-| `last_upgraded` | `Last_Upgraded` | Timestamp of last successful AWX upgrade |
+| `last_upgraded` | `Last_Upgraded` | Timestamp of last successful upgrade (also recorded per-event in `transactions`) |
 | `check_current` | `Check_Current` | Method for current version detection |
 | `check_latest` | `Check_Latest` | Method for latest version lookup |
 | `library_github` | `Library_GitHub` | GitHub repo path for the ESPHome project library (e.g. `konnected-io/konnected-esphome`) — used by airgradient and konnected to track library version separately from ESPHome version |
 | `current_library_version` | `Current_Library_Version` | Current version of the ESPHome project library running on the device |
 | `latest_library_version` | `Latest_Library_Version` | Latest available version of the ESPHome project library |
+| `notes` | `Notes` | Free-text notes field (e.g. set to "Firmware update available" for OPNsense) |
+
+### `transactions` table
+One row per upgrade actually triggered (mirrors every `Last_Upgraded` write in `upgrade_application()`), giving full history instead of a single overwritten timestamp:
+
+| Column | Description |
+| ------ | ----------- |
+| `id` | Autoincrement primary key |
+| `application_id` | FK to `applications.id` |
+| `name`, `instance` | Denormalized so history survives even if the app row is later edited/removed |
+| `upgrade_method` | The concrete method used (`ansible-manifest`, `ansible-helm`, `ansible-apt`, `ansible-cr`, `ansible-esphome`, `ansible-llm`) |
+| `from_version`, `to_version` | `Current_Version`/`Latest_Version` at the moment the upgrade was triggered |
+| `timestamp` | When the upgrade was triggered |
+| `detail` | Optional free text (e.g. "covered by shared vault upgrade workflow") |
+
+`VersionManager.log_transaction()` writes these rows; only real (non-dry-run), successfully-triggered upgrades are logged — not every version check.
 
 ### Field Name Mapping
-The codebase uses PascalCase internally; YAML frontmatter uses snake_case. The `FIELD_MAP` dict in `version_manager.py` handles bidirectional translation. Always use snake_case in note frontmatter.
+The codebase uses PascalCase internally; the database uses snake_case columns. The `FIELD_MAP` dict in `version_manager.py` handles bidirectional translation via `get_row_data()`/`update_row_data()`.
 
-### Note Example
-```yaml
----
-name: homeassistant
-enabled: true
-instance: prod
-type: application
-category: home-automation
-version_pin: pinned
-upgrade: ansible-manifest
-target: https://homeassistant.goepp.net
-github: home-assistant/core
-dockerhub: homeassistant/home-assistant
-current_version: 2025.1.0
-latest_version: 2025.1.2
-status: Update Available
-last_checked: '2025-01-15 10:30:00'
-check_current: api
-check_latest: docker_hub
----
-```
-
-### Note Naming Convention
-- Note files are named `{name}-{instance}.md` (e.g. `homeassistant-prod.md`)
-- The `name` field must be lowercase with no hyphens where possible (e.g. `homeassistant` not `home-assistant`)
+### Adding a New Application Row
+- `name` should be lowercase with no hyphens where possible (e.g. `homeassistant` not `home-assistant`)
 - The AWX app_name key is constructed as `{name}-{instance}` and **must match** the corresponding key in `k3s_applications.yml`
+- New rows can be inserted directly via `sqlite3`, or with `INSERT OR REPLACE` like `migrate_vault_to_sqlite.py` does — there is currently no TUI/CLI "create" flow, only `e` (edit) for existing rows
 
 ## Key Patterns
 
@@ -150,19 +143,19 @@ The system uses two separate fields for version checking:
 ## Configuration Patterns
 
 ### Repository Field Management
-- **Separate fields**: GitHub and DockerHub repository paths in dedicated frontmatter keys
+- **Separate fields**: GitHub and DockerHub repository paths in dedicated columns
 - **GitHub field**: `owner/repository-name` format
 - **DockerHub field**: `organization/image-name` format
 - **Direct usage**: Field values used by checkers based on `check_latest` method without hardcoding
 
 ### URL Handling
-- **Notes store complete URLs**: Full URLs with https:// protocols in `target` field
+- **Rows store complete URLs**: Full URLs with https:// protocols in `target` column
 - **Direct usage**: URLs passed directly to HTTP request functions
 - **Format**: `https://hostname.domain.com` or `https://ip-address:port`
 
 ### Configuration Management
 - **config.py**: Centralized configuration and credential storage (loads `.env` file)
-- **Obsidian Vault**: `config.OBSIDIAN_VAULT_FOLDER` (env: `OBSIDIAN_VAULT_FOLDER`, default: `/Users/dang/Documents/Goeppedia/Software`)
+- **Database**: `config.DATABASE_PATH` (env: `DATABASE_PATH`, default: `data/version_checker.db` inside the repo)
 - **MQTT**: `config.MQTT_BROKER`, `config.MQTT_USERNAME`, `config.MQTT_PASSWORD`
 - **Home Assistant**: `config.HA_TOKENS` dictionary by instance
 - **OPNsense**: `config.OPNSENSE_API_KEY`, `config.OPNSENSE_API_SECRET`
@@ -189,8 +182,8 @@ The system uses two separate fields for version checking:
 - **k3s_applications.yml**: All entries are individual `manifest` or `helm` entries — no `manifest-multi` looping. Each entry is `{name}-{instance}` keyed independently
 
 ### Kubernetes Integration
-- **Context-aware**: kubectl context per application via `context` frontmatter field
-- **Namespace-aware**: Namespace per application via `namespace` frontmatter field
+- **Context-aware**: kubectl context per application via `context` column
+- **Namespace-aware**: Namespace per application via `namespace` column
 - **Pod discovery**: `kubectl get pods` with JSON output parsing
 - **Command execution**: `kubectl exec` for version commands
 
@@ -237,7 +230,8 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 - **`c`**: runs a full check-all (`vm.check_all_applications()`) in a background thread; stdout from the manager is redirected into the on-screen `RichLog` panel via `contextlib.redirect_stdout`
 - **`C`** (Shift+C): rechecks only the selected rows (or the highlighted row if nothing is selected) via `vm.check_single_application(idx)` per row — avoids a full check-all just to see whether one app changed. Bound as literal `"C"`, not `"shift+c"` — most terminals send a bare capital letter for Shift+(any letter) rather than a distinct modifier combo, and Textual's `"shift+c"` binding only matches terminals using an extended keyboard protocol (e.g. Kitty), so it silently never fires in a normal terminal
 - **`u`**: upgrades every selected row — for each, calls `vm.upgrade_application(name, instance=instance)` (no `force`, so existing skip logic for "already up to date" / kernel-only apt updates still applies); requires confirmation via a modal dialog before running (upgrades can commit/push to the k3s-config repo and trigger AWX jobs, so confirmation is deliberate). After all upgrades are triggered, each affected row is automatically rechecked — since AWX upgrades run asynchronously, this recheck may still show the pre-upgrade version if the job hasn't rolled out yet; use `C` later to check again
-- **`r`**: refreshes the visible list from current in-memory note state
+- **`e`**: opens `EditScreen`, a modal form (`src/tui/app.py`) with every field from `vm.get_row_data(idx)` on the single highlighted row (`Enabled` is a `Switch`, everything else an `Input`; `Extra_Manifests` is edited as one manifest path per line). Save diffs the form against the original values and calls `vm.update_row_data(idx, updates)` with only the changed fields; Cancel/Escape discards. This is a synchronous DB write with no network/subprocess calls, so it runs on the main thread — not through `_run_background()`
+- **`r`**: refreshes the visible list from current in-memory row state
 - Long-running operations (`c`, `C`, `u`) run via `App.run_worker(..., thread=True)` since the underlying checks/upgrades are blocking network/subprocess calls; UI updates from the worker thread go through `call_from_thread`
 - **Confirm dialog default**: the upgrade confirmation modal defaults focus to "Cancel" (not the destructive action) so pressing Enter without deliberately tabbing to "Upgrade" is safe
 - **Background work always clears busy state**: Textual widgets treat `disabled or loading` as "non-interactive", so `table.loading = True` while a background op runs also blocks arrow-key/selection input on the DataTable. All background work goes through `_run_background()`, which wraps the call in `try/except` (logging any exception into the RichLog instead of losing it) and a `finally` that guarantees `_on_background_done()` — and therefore `table.loading = False` — always runs, even if `vm.check_single_application()` / `vm.upgrade_application()` raises. Without this, any exception (a real possibility against live infra — timeouts, unexpected API responses) permanently freezes the table with no visible error
@@ -275,8 +269,8 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 # Check specific application, specific instance
 ./check_versions.py --app "homeassistant" --instance prod
 
-# Use a custom vault folder
-./check_versions.py --vault /path/to/vault/Software --check-all
+# Use a custom database file
+./check_versions.py --db /path/to/version_checker.db --check-all
 
 # Upgrade an application (use --app with --upgrade flag)
 # - version_pin='latest': triggers AWX job directly (if upgrade is ansible-manifest or ansible-helm)
@@ -299,14 +293,13 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 ## Development Patterns
 
 ### Adding New Applications
-1. Create a new `.md` file in the vault Software folder with appropriate YAML frontmatter
-2. Name the file `{name}-{instance}.md`; use lowercase no-hyphen `name` (e.g. `homeassistant` not `home-assistant`)
-3. Set `check_current` and `check_latest` fields plus `target` URL
-4. Populate both `github` and `dockerhub` fields when available (Docker Hub preferred automatically)
-5. If the app uses AWX upgrade: set `upgrade: ansible-manifest` or `upgrade: ansible-helm` in the note, and add a matching `{name}-{instance}` entry in `k3s_applications.yml`
-6. Create or extend checker module in `src/checkers/` if needed
-7. Import and wire up checker function in `version_manager.py`
-8. Test with `--app` flag
+1. Insert a new row into the `applications` table (via `sqlite3` directly, or `INSERT OR REPLACE` like `migrate_vault_to_sqlite.py`); use lowercase no-hyphen `name` (e.g. `homeassistant` not `home-assistant`)
+2. Set `check_current` and `check_latest` columns plus `target` URL
+3. Populate both `github` and `dockerhub` columns when available (Docker Hub preferred automatically)
+4. If the app uses AWX upgrade: set `upgrade: ansible-manifest` or `upgrade: ansible-helm`, and add a matching `{name}-{instance}` entry in `k3s_applications.yml`
+5. Create or extend checker module in `src/checkers/` if needed
+6. Import and wire up checker function in `version_manager.py`
+7. Test with `--app` flag
 
 ### Repository Field Strategy
 - **Populate Both**: Add both GitHub and DockerHub repositories when available
@@ -345,24 +338,25 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 1. **Individual app testing**: `--app "name"`
 2. **Full system test**: `--check-all`
 3. **Status verification**: `--summary` and `--list`
-4. **Note validation**: Check frontmatter timestamps and version fields after a check
+4. **Row validation**: Check timestamps and version columns via `sqlite3 data/version_checker.db` after a check
 
 ## Technical Notes
 - **Python Version**: Requires Python 3.13.7+ for clean operation (no urllib3 warnings)
 - **Virtual Environment**: Recreate with new Python versions for optimal compatibility (~50MB smaller without pandas)
 - **SSL/TLS**: Uses system OpenSSL with urllib3 v2.5.0+ for secure HTTPS requests
 - **Code Organization**: Modular architecture with optimized checker modules
-- **Note Persistence**: Notes are written individually after each check (no single save-all operation); `save_workbook()` is a no-op stub for interface compatibility
+- **Row Persistence**: Rows are written individually after each check (no single save-all operation); `save_workbook()` is a no-op stub for interface compatibility
 - **API Efficiency**: GitHub and Docker Hub API calls are cached using @lru_cache for massive performance improvement on multi-instance apps
 - **Security**: All subprocess calls use list-based command construction to prevent command injection vulnerabilities
-- **Concurrency**: ThreadPoolExecutor enables parallel version checking with thread-safe note writes via threading.Lock()
+- **Concurrency**: ThreadPoolExecutor enables parallel version checking with thread-safe row writes via threading.Lock()
 - **Kubernetes Integration**: Uses kubectl JSON output parsing instead of shell pipes for better performance and security
 - **Thread-safe Output**: Concurrent checks buffer stdout per thread and flush atomically to avoid interleaved output
 
-## Critical Note Handling Rules
-- **NEVER use pandas or openpyxl**: The system has migrated to Obsidian markdown notes
-- **Note files are plain text**: Read with `path.read_text(encoding="utf-8")`
-- **YAML frontmatter**: Fields are snake_case; code uses PascalCase via `FIELD_MAP`
-- **Write back with yaml.dump**: Use `sort_keys=False` and `allow_unicode=True`
-- **Note body preserved**: `_write_note()` currently writes only frontmatter (body is empty for version notes)
-- **Vault folder**: Set via `OBSIDIAN_VAULT_FOLDER` env var; default is `/Users/dang/Documents/Goeppedia/Software`
+## Critical Database Handling Rules
+- **NEVER use pandas or openpyxl**: The system uses a SQLite database (`src/db.py`)
+- **Column mapping**: DB columns are snake_case; code uses PascalCase via `FIELD_MAP` in `version_manager.py`, translated by `get_row_data()`/`update_row_data()`
+- **`enabled`** is stored as `0`/`1`, converted to/from `bool` on read/write
+- **`extra_manifests`** is stored as JSON text, converted to/from a `list` on read/write
+- **In-memory shape**: `VersionManager.notes` is `[{"id": <row id>, "frontmatter": {...}}, ...]` — the TUI reads `vm.notes[idx]["frontmatter"]` directly, so this shape must be preserved by any future storage change
+- **Database path**: Set via `DATABASE_PATH` env var; default is `data/version_checker.db` inside the repo (gitignored)
+- **One-time vault migration**: `migrate_vault_to_sqlite.py` imports the legacy Obsidian `.md` notes into SQLite; it is read-only against the vault and safe to re-run (`INSERT OR REPLACE` keyed on `name`+`instance`). Not used by the running app.

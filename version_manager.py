@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
 from datetime import datetime
+import json
 import re
 import sys
 import urllib3
 from pathlib import Path
 
-import yaml
-
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
+
+from src import db
 
 from src.checkers.github import get_github_latest_version, get_github_latest_tag
 from src.checkers.home_assistant import get_home_assistant_version
@@ -99,7 +100,7 @@ FIELD_MAP = {
     "Version_Pin": "version_pin",
     "Upgrade": "upgrade",
     "Target": "target",
-    "Esphome_Key": "esphome key",
+    "Esphome_Key": "esphome_key",
     "GitHub": "github",
     "DockerHub": "dockerhub",
     "Current_Version": "current_version",
@@ -114,33 +115,36 @@ FIELD_MAP = {
     "Library_GitHub": "library_github",
     "Current_Library_Version": "current_library_version",
     "Latest_Library_Version": "latest_library_version",
+    "Notes": "notes",
 }
 YAML_TO_FIELD = {v: k for k, v in FIELD_MAP.items()}
 
-
-def _parse_note(path: Path) -> dict:
-    content = path.read_text(encoding="utf-8")
-    if not content.startswith("---\n"):
-        return {"frontmatter": {}, "body": content, "path": path}
-    end = content.find("\n---\n", 4)
-    if end == -1:
-        return {"frontmatter": {}, "body": content, "path": path}
-    frontmatter = yaml.safe_load(content[4:end]) or {}
-    body = content[end + 5:]
-    return {"frontmatter": frontmatter, "body": body, "path": path}
+# Columns with non-string storage representations that need conversion
+# between the DB row and the in-memory frontmatter dict.
+_BOOL_COLUMNS = {"enabled"}
+_JSON_COLUMNS = {"extra_manifests"}
 
 
-def _write_note(note: dict) -> None:
-    yaml_text = yaml.dump(
-        note["frontmatter"],
-        allow_unicode=True,
-        default_flow_style=False,
-        sort_keys=False,
-    )
-    note["path"].write_text(
-        f"---\n{yaml_text}---\n",
-        encoding="utf-8",
-    )
+def _row_to_frontmatter(row) -> dict:
+    fm = {}
+    for col in row.keys():
+        value = row[col]
+        if col == "id":
+            continue
+        if col in _BOOL_COLUMNS:
+            value = bool(value)
+        elif col in _JSON_COLUMNS:
+            value = json.loads(value) if value else []
+        fm[col] = value
+    return fm
+
+
+def _frontmatter_value_to_db(col: str, value):
+    if col in _BOOL_COLUMNS:
+        return int(bool(value))
+    if col in _JSON_COLUMNS:
+        return json.dumps(value) if value else None
+    return value
 
 
 class VersionManager:
@@ -152,23 +156,45 @@ class VersionManager:
         "Unknown": "❓",
     }
 
-    DEFAULT_VAULT_FOLDER = Path(
-        getattr(config, "OBSIDIAN_VAULT_FOLDER", "/Users/dang/Documents/Goeppedia/Software")
+    DEFAULT_DB_PATH = Path(
+        getattr(config, "DATABASE_PATH", str(Path(__file__).parent / "data" / "version_checker.db"))
     )
 
-    def __init__(self, vault_folder=None):
-        self.vault_folder = Path(vault_folder) if vault_folder else self.DEFAULT_VAULT_FOLDER
+    def __init__(self, db_path=None):
+        self.db_path = Path(db_path) if db_path else self.DEFAULT_DB_PATH
+        self.conn = db.get_connection(self.db_path)
+        db.init_db(self.conn)
         self.notes = []
-        self.load_vault()
+        self.load_data()
 
-    def load_vault(self):
-        md_files = sorted(self.vault_folder.glob("*.md"))
-        self.notes = [_parse_note(p) for p in md_files]
+    def load_data(self):
+        rows = self.conn.execute(
+            "SELECT * FROM applications ORDER BY name, instance"
+        ).fetchall()
+        self.notes = [{"id": row["id"], "frontmatter": _row_to_frontmatter(row)} for row in rows]
         enabled = sum(1 for n in self.notes if n["frontmatter"].get("enabled", True) is True)
-        print(f"Loaded {len(self.notes)} applications from Obsidian vault ({enabled} enabled)")
+        print(f"Loaded {len(self.notes)} applications from database ({enabled} enabled)")
 
     def save_workbook(self):
         pass
+
+    def log_transaction(self, idx: int, upgrade_method: str, from_version: str, to_version: str, detail: str = "") -> None:
+        fm = self.notes[idx]["frontmatter"]
+        self.conn.execute(
+            "INSERT INTO transactions (application_id, name, instance, upgrade_method, from_version, to_version, timestamp, detail) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                self.notes[idx]["id"],
+                fm.get("name", ""),
+                fm.get("instance", ""),
+                upgrade_method,
+                from_version,
+                to_version,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                detail,
+            ),
+        )
+        self.conn.commit()
 
     def get_row_data(self, idx: int) -> dict:
         fm = self.notes[idx]["frontmatter"]
@@ -180,11 +206,21 @@ class VersionManager:
 
     def update_row_data(self, idx: int, updates: dict) -> None:
         fm = self.notes[idx]["frontmatter"]
+        changed_columns = {}
         for pascal_key, value in updates.items():
-            yaml_key = FIELD_MAP.get(pascal_key)
-            if yaml_key:
-                fm[yaml_key] = value if value != "" else None
-        _write_note(self.notes[idx])
+            column = FIELD_MAP.get(pascal_key)
+            if column:
+                fm[column] = value if value != "" else None
+                changed_columns[column] = fm[column]
+
+        if not changed_columns:
+            return
+
+        set_clause = ", ".join(f"{col} = ?" for col in changed_columns)
+        values = [_frontmatter_value_to_db(col, val) for col, val in changed_columns.items()]
+        values.append(self.notes[idx]["id"])
+        self.conn.execute(f"UPDATE applications SET {set_clause} WHERE id = ?", values)
+        self.conn.commit()
 
     def find_application_row(self, app_name: str, instance: str = "prod") -> int | None:
         for idx, note in enumerate(self.notes):
@@ -761,6 +797,7 @@ class VersionManager:
                     launched += 1
                     if not dry_run:
                         self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                        self.log_transaction(idx, "ansible-apt", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
                 else:
                     skipped += 1
                 continue
@@ -772,6 +809,7 @@ class VersionManager:
                     launched += 1
                     if not dry_run:
                         self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                        self.log_transaction(idx, "ansible-llm", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
                 else:
                     skipped += 1
                 continue
@@ -781,6 +819,7 @@ class VersionManager:
                     print(f"  Skipping {label}: ESPHome AWX job already launched for all instances")
                     if not dry_run:
                         self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                        self.log_transaction(idx, "ansible-esphome", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "", detail="covered by shared ESPHome AWX job")
                     skipped += 1
                     continue
                 esphome_target_map = {"konnected": "garage-door-opener", "esp-heat-control": "heat-control"}
@@ -795,6 +834,7 @@ class VersionManager:
                     launched += 1
                     if not dry_run:
                         self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                        self.log_transaction(idx, "ansible-esphome", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
                 else:
                     skipped += 1
                 continue
@@ -811,6 +851,7 @@ class VersionManager:
                     launched += 1
                     if not dry_run:
                         self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                        self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
                 else:
                     skipped += 1
                 continue
@@ -861,6 +902,7 @@ class VersionManager:
                         launched += 1
                         if not dry_run:
                             self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                            self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
                     else:
                         skipped += 1
                     continue
@@ -929,6 +971,7 @@ class VersionManager:
                             print(f"  Skipping {label}: vault upgrade workflow already launched")
                             if not dry_run:
                                 self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                                self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "", detail="covered by shared vault upgrade workflow")
                             skipped += 1
                             continue
                         print(f"  Triggering AWX vault upgrade workflow for {label}...")
@@ -944,6 +987,7 @@ class VersionManager:
                         launched += 1
                         if not dry_run:
                             self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                            self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
                     else:
                         skipped += 1
                 continue

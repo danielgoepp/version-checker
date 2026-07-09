@@ -12,61 +12,43 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.NotOpenSSLWarning)
 
 
-def _vault_path() -> Path | None:
-    folder = os.environ.get("OBSIDIAN_VAULT_FOLDER", "/Users/dang/Documents/Goeppedia/Software")
-    p = Path(folder)
-    return p if p.is_dir() else None
+def _db_path() -> Path:
+    default = str(Path(__file__).parent / "data" / "version_checker.db")
+    return Path(os.environ.get("DATABASE_PATH", default))
 
 
-def _parse_note_name_instance(md: Path) -> tuple[str, str] | None:
-    import yaml
-    content = md.read_text(encoding="utf-8")
-    if not content.startswith("---\n"):
-        return None
-    end = content.find("\n---\n", 4)
-    if end == -1:
-        return None
-    frontmatter = yaml.safe_load(content[4:end]) or {}
-    name = frontmatter.get("name")
-    instance = frontmatter.get("instance")
-    if name and instance:
-        return name, instance
-    return None
+def _fetch_name_instance_pairs() -> list[tuple[str, str]]:
+    import sqlite3
+    db_path = _db_path()
+    if not db_path.is_file():
+        return []
+    conn = sqlite3.connect(db_path)
+    try:
+        return conn.execute("SELECT DISTINCT name, instance FROM applications").fetchall()
+    finally:
+        conn.close()
 
 
 def _app_completer(prefix, parsed_args, **kwargs):
-    vault = _vault_path()
-    if vault is None:
-        return []
-    names = set()
-    for md in vault.glob("*.md"):
-        result = _parse_note_name_instance(md)
-        if result:
-            names.add(result[0])
+    names = {name for name, _ in _fetch_name_instance_pairs()}
     return [n for n in sorted(names) if n.startswith(prefix)]
 
 
 def _instance_completer(prefix, parsed_args, **kwargs):
-    vault = _vault_path()
-    if vault is None:
-        return []
     app = getattr(parsed_args, "app", None)
-    instances = []
-    for md in vault.glob("*.md"):
-        result = _parse_note_name_instance(md)
-        if result:
-            name, instance = result
-            if app is None or name == app:
-                instances.append(instance)
+    instances = [
+        instance for name, instance in _fetch_name_instance_pairs()
+        if app is None or name == app
+    ]
     return [i for i in sorted(set(instances)) if i.startswith(prefix)]
 
 
 def main():
     parser = argparse.ArgumentParser(description="Goepp Homelab Version Manager")
     parser.add_argument(
-        "--vault",
+        "--db",
         default=None,
-        help="Path to Obsidian Software vault folder (default: from config)",
+        help="Path to SQLite database file (default: from config)",
     )
     parser.add_argument(
         "--check-all", action="store_true", help="Check all applications and exit"
@@ -127,10 +109,10 @@ def main():
 
     from version_manager import VersionManager
 
-    vm = VersionManager(args.vault)
+    vm = VersionManager(args.db)
 
     if not vm.notes:
-        print("Failed to load vault notes. Check vault path and permissions.")
+        print("Failed to load application data. Check the database path and permissions.")
         sys.exit(1)
 
     if args.tui:
