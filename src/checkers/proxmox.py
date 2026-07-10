@@ -4,7 +4,6 @@ import json
 import requests
 import subprocess
 import os
-from pathlib import Path
 import config
 
 def get_ceph_version(instance):
@@ -95,67 +94,6 @@ def get_proxmox_version(instance, url):
     except Exception as e:
         print(f"  Error checking Proxmox version for {instance}: {e}")
         return None
-
-def load_compatibility_matrix():
-    cache_file = Path(__file__).parent.parent.parent / "proxmox_ceph_compatibility.json"
-
-    if cache_file.exists():
-        try:
-            with open(cache_file, 'r') as f:
-                cache_data = json.load(f)
-            return cache_data.get('compatibility_matrix', {})
-        except Exception as e:
-            print(f"  Error: Failed to load compatibility cache: {e}")
-            print(f"  Run 'python3 refresh_proxmox_ceph_matrix.py' to generate compatibility data")
-            return {}
-    else:
-        print(f"  Error: Compatibility matrix not found at {cache_file}")
-        print(f"  Run 'python3 refresh_proxmox_ceph_matrix.py' to generate compatibility data")
-        return {}
-
-def get_ceph_latest_version_for_proxmox(proxmox_version):
-    if not proxmox_version:
-        return None
-
-    proxmox_ceph_compatibility = load_compatibility_matrix()
-
-    import re
-    match = re.match(r'(\d+\.\d+)', proxmox_version)
-    if not match:
-        return None
-
-    version_key = match.group(1)
-    return proxmox_ceph_compatibility.get(version_key)
-
-
-def compare_proxmox_versions(current_version, latest_version):
-    if not current_version or not latest_version:
-        return 0
-
-    import re
-
-    current_match = re.match(r'(\d+)\.(\d+)(?:\.(\d+))?', current_version)
-    latest_match = re.match(r'(\d+)\.(\d+)(?:\.(\d+))?', latest_version)
-
-    if not current_match or not latest_match:
-        return 0
-
-    current_major = int(current_match.group(1))
-    current_minor = int(current_match.group(2))
-    current_patch = int(current_match.group(3) or 0)
-
-    latest_major = int(latest_match.group(1))
-    latest_minor = int(latest_match.group(2))
-    latest_patch = int(latest_match.group(3) or 0)
-
-    if current_major != latest_major:
-        return -1 if current_major < latest_major else 1
-    if current_minor != latest_minor:
-        return -1 if current_minor < latest_minor else 1
-    if current_patch != latest_patch:
-        return -1 if current_patch < latest_patch else 1
-
-    return 0
 
 def get_proxmox_latest_version(include_ceph=False, current_version=None):
     try:
