@@ -62,6 +62,14 @@ def main():
         action="store_true",
         help="List only applications with updates available and exit",
     )
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help=(
+            "Show upgrade history from the transactions table and exit "
+            "(most recent 40; use --app/--instance to filter)"
+        ),
+    )
     app_arg = parser.add_argument("--app", type=str, help="Check specific application by name")
     parser.add_argument(
         "--upgrade",
@@ -127,6 +135,8 @@ def main():
         vm.show_applications()
     elif args.updates:
         vm.show_updates()
+    elif args.history:
+        vm.show_history(name=args.app or "", instance=args.instance)
     elif args.app:
         if args.upgrade:
             label = f"'{args.app}'" + (f" (instance: {args.instance})" if args.instance else "")

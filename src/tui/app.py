@@ -179,6 +179,89 @@ class EditScreen(ModalScreen[dict | None]):
         self.dismiss(updates)
 
 
+HISTORY_LIMIT = 40
+
+
+class HistoryScreen(ModalScreen[None]):
+    """Read-only browser over the `transactions` table (most recent first, capped)."""
+
+    BINDINGS = [Binding("escape", "close", "Close")]
+
+    CSS = """
+    HistoryScreen {
+        align: center middle;
+    }
+    #history-dialog {
+        width: 100%;
+        height: 100%;
+        border: thick $primary;
+        background: $surface;
+        padding: 1 2;
+    }
+    #history-title {
+        height: 1;
+        content-align: center middle;
+        text-style: bold;
+    }
+    #history-filter {
+        height: 3;
+    }
+    #history-table {
+        height: 1fr;
+    }
+    #history-count {
+        height: 1;
+        color: $text-muted;
+    }
+    """
+
+    def __init__(self, vm) -> None:
+        super().__init__()
+        self.vm = vm
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Label("Upgrade History (Esc to close)", id="history-title"),
+            Input(placeholder="Filter by app name...", id="history-filter"),
+            DataTable(id="history-table", cursor_type="row"),
+            Static(id="history-count"),
+            id="history-dialog",
+        )
+
+    def on_mount(self) -> None:
+        table = self.query_one(DataTable)
+        table.add_columns("Timestamp", "Name", "Instance", "Method", "From", "To", "Detail")
+        self._reload("")
+        self.query_one("#history-filter", Input).focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "history-filter":
+            self._reload(event.value)
+
+    def _reload(self, name_filter: str) -> None:
+        table = self.query_one(DataTable)
+        table.clear()
+        rows = self.vm.get_transaction_history(
+            limit=HISTORY_LIMIT, name=name_filter, fuzzy_name=True
+        )
+        for tx in rows:
+            table.add_row(
+                tx["timestamp"],
+                tx["name"],
+                tx["instance"],
+                tx["upgrade_method"] or "",
+                tx["from_version"] or "",
+                tx["to_version"] or "",
+                tx["detail"] or "",
+            )
+        self.query_one("#history-count", Static).update(
+            f"Showing {len(rows)} transaction(s), capped at {HISTORY_LIMIT}"
+        )
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
 class _LogWriter:
     """Redirects print() output from VersionManager onto the RichLog widget.
 
@@ -242,6 +325,7 @@ class VersionCheckerApp(App):
         Binding("C", "check_selected", "Recheck Selected"),
         Binding("u", "upgrade_selected", "Upgrade Selected"),
         Binding("e", "edit_selected", "Edit"),
+        Binding("h", "show_history", "History"),
         Binding("r", "refresh_view", "Refresh"),
         Binding("q", "quit", "Quit"),
     ]
@@ -438,6 +522,11 @@ class VersionCheckerApp(App):
         self.vm.update_row_data(idx, updates)
         self.refresh_table()
         self.notify("Application updated")
+
+    def action_show_history(self) -> None:
+        if self.busy:
+            return
+        self.push_screen(HistoryScreen(self.vm))
 
     def _on_background_done(self, message: str) -> None:
         self._set_busy(False)

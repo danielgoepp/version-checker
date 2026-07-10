@@ -63,7 +63,7 @@ One row per upgrade actually triggered (mirrors every `Last_Upgraded` write in `
 | `timestamp` | When the upgrade was triggered |
 | `detail` | Optional free text (e.g. "covered by shared vault upgrade workflow") |
 
-`VersionManager.log_transaction()` writes these rows; only real (non-dry-run), successfully-triggered upgrades are logged — not every version check.
+`VersionManager.log_transaction()` writes these rows; only real (non-dry-run), successfully-triggered upgrades are logged — not every version check. `VersionManager.get_transaction_history(limit=40, name="", instance="", fuzzy_name=False)` reads them back (most recent first, hard-capped at 40 by default). `name`/`instance` match exactly (case-insensitive), matching the semantics of `find_application_rows_by_name` — except `fuzzy_name=True`, which switches `name` to a substring (`LIKE`) match; used by the TUI's live filter box so a partial app name narrows results while typing instead of requiring the exact name. `VersionManager.show_history()` prints the CLI table view.
 
 ### Field Name Mapping
 The codebase uses PascalCase internally; the database uses snake_case columns. The `FIELD_MAP` dict in `version_manager.py` handles bidirectional translation via `get_row_data()`/`update_row_data()`.
@@ -231,6 +231,7 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 - **`C`** (Shift+C): rechecks only the selected rows (or the highlighted row if nothing is selected) via `vm.check_single_application(idx)` per row — avoids a full check-all just to see whether one app changed. Bound as literal `"C"`, not `"shift+c"` — most terminals send a bare capital letter for Shift+(any letter) rather than a distinct modifier combo, and Textual's `"shift+c"` binding only matches terminals using an extended keyboard protocol (e.g. Kitty), so it silently never fires in a normal terminal
 - **`u`**: upgrades every selected row — for each, calls `vm.upgrade_application(name, instance=instance)` (no `force`, so existing skip logic for "already up to date" / kernel-only apt updates still applies); requires confirmation via a modal dialog before running (upgrades can commit/push to the k3s-config repo and trigger AWX jobs, so confirmation is deliberate). After all upgrades are triggered, each affected row is automatically rechecked — since AWX upgrades run asynchronously, this recheck may still show the pre-upgrade version if the job hasn't rolled out yet; use `C` later to check again
 - **`e`**: opens `EditScreen`, a modal form (`src/tui/app.py`) with every field from `vm.get_row_data(idx)` on the single highlighted row (`Enabled` is a `Switch`, everything else an `Input`; `Extra_Manifests` is edited as one manifest path per line). Save diffs the form against the original values and calls `vm.update_row_data(idx, updates)` with only the changed fields; Cancel/Escape discards. This is a synchronous DB write with no network/subprocess calls, so it runs on the main thread — not through `_run_background()`
+- **`h`**: opens `HistoryScreen`, a full-screen modal listing rows from the `transactions` table (most recent first, hard-capped at 40 — `HISTORY_LIMIT` in `src/tui/app.py`) via `vm.get_transaction_history()` — Timestamp, Name, Instance, Method, From, To, Detail columns. Focus starts in a filter `Input` at the top; typing live-narrows results by app name (substring match, `fuzzy_name=True`) via `on_input_changed`, re-querying and clearing/repopulating the table on every keystroke. Read-only; `Escape` closes it. Not scoped to the row highlighted in the main table — it always starts unfiltered
 - **`r`**: refreshes the visible list from current in-memory row state
 - Long-running operations (`c`, `C`, `u`) run via `App.run_worker(..., thread=True)` since the underlying checks/upgrades are blocking network/subprocess calls; UI updates from the worker thread go through `call_from_thread`
 - **Confirm dialog default**: the upgrade confirmation modal defaults focus to "Cancel" (not the destructive action) so pressing Enter without deliberately tabbing to "Upgrade" is safe
@@ -258,6 +259,13 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 
 # List only applications with updates available
 ./check_versions.py --updates
+
+# Show upgrade history (most recent 40 transactions)
+./check_versions.py --history
+
+# Show upgrade history filtered to one app (and optionally one instance) — reuses --app/--instance
+./check_versions.py --history --app "grafana"
+./check_versions.py --history --app "homeassistant" --instance prod
 
 # Check specific application (all instances)
 ./check_versions.py --app "homeassistant"

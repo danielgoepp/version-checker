@@ -196,6 +196,41 @@ class VersionManager:
         )
         self.conn.commit()
 
+    def get_transaction_history(
+        self, limit: int | None = 40, name: str = "", instance: str = "", fuzzy_name: bool = False
+    ) -> list[dict]:
+        """Most recent transactions first, capped at `limit`.
+
+        `name`/`instance` match exactly (case-insensitive) unless `fuzzy_name`
+        is set, in which case `name` is a substring match — used by the TUI's
+        live filter box, where typing a partial app name should narrow results
+        immediately rather than requiring the full exact name.
+        """
+        query = (
+            "SELECT name, instance, upgrade_method, from_version, to_version, timestamp, detail "
+            "FROM transactions"
+        )
+        conditions = []
+        params: list = []
+        if name:
+            if fuzzy_name:
+                conditions.append("name LIKE ?")
+                params.append(f"%{name}%")
+            else:
+                conditions.append("LOWER(name) = LOWER(?)")
+                params.append(name)
+        if instance:
+            conditions.append("LOWER(instance) = LOWER(?)")
+            params.append(instance)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " ORDER BY timestamp DESC"
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
     def get_row_data(self, idx: int) -> dict:
         fm = self.notes[idx]["frontmatter"]
         data = {}
@@ -757,6 +792,54 @@ class VersionManager:
             )
 
         print(f"\nTotal: {len(updates)} applications")
+
+    def show_history(self, name: str = "", instance: str = "", limit: int | None = 40):
+        history = self.get_transaction_history(limit=limit, name=name, instance=instance)
+
+        max_widths = {
+            "timestamp": len("Timestamp"),
+            "name": len("Name"),
+            "instance": len("Instance"),
+            "method": len("Method"),
+            "from": len("From"),
+            "to": len("To"),
+        }
+
+        rows = []
+        for tx in history:
+            row = {
+                "timestamp": tx["timestamp"],
+                "name": tx["name"],
+                "instance": tx["instance"],
+                "method": tx["upgrade_method"] or "",
+                "from": tx["from_version"] or "",
+                "to": tx["to_version"] or "",
+                "detail": tx["detail"] or "",
+            }
+            for key in max_widths:
+                max_widths[key] = max(max_widths[key], len(str(row[key])))
+            rows.append(row)
+
+        total_width = sum(max_widths.values()) + len(max_widths) * 2
+
+        print("\nUpgrade History:")
+        print("=" * total_width)
+        print(
+            f"{'Timestamp':<{max_widths['timestamp']}} {'Name':<{max_widths['name']}} {'Instance':<{max_widths['instance']}} {'Method':<{max_widths['method']}} {'From':<{max_widths['from']}} {'To':<{max_widths['to']}}"
+        )
+        print("-" * total_width)
+        for row in rows:
+            line = (
+                f"{row['timestamp']:<{max_widths['timestamp']}} {row['name']:<{max_widths['name']}} "
+                f"{row['instance']:<{max_widths['instance']}} {row['method']:<{max_widths['method']}} "
+                f"{row['from']:<{max_widths['from']}} {row['to']:<{max_widths['to']}}"
+            )
+            if row["detail"]:
+                line += f"  {row['detail']}"
+            print(line)
+
+        cap_note = f" (capped at {limit})" if limit else ""
+        print(f"\nShowing {len(rows)} transaction(s){cap_note}")
 
     def upgrade_application(self, app_name: str, dry_run: bool = False, instance: str = "", force: bool = False):
         matching = self.find_application_rows_by_name(app_name, instance=instance)
