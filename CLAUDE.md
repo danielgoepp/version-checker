@@ -71,7 +71,7 @@ The codebase uses PascalCase internally; the database uses snake_case columns. T
 ### Adding a New Application Row
 - `name` should be lowercase with no hyphens where possible (e.g. `homeassistant` not `home-assistant`)
 - The AWX app_name key is constructed as `{name}-{instance}` and **must match** the corresponding key in `k3s_applications.yml`
-- New rows can be inserted directly via `sqlite3`, or with `INSERT OR REPLACE` like `migrate_vault_to_sqlite.py` does — there is currently no TUI/CLI "create" flow, only `e` (edit) for existing rows
+- New rows can be inserted directly via `sqlite3` (e.g. `INSERT OR REPLACE INTO applications (...) VALUES (...)`) — there is currently no TUI/CLI "create" flow, only `e` (edit) for existing rows
 
 ## Key Patterns
 
@@ -293,7 +293,7 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 ## Development Patterns
 
 ### Adding New Applications
-1. Insert a new row into the `applications` table (via `sqlite3` directly, or `INSERT OR REPLACE` like `migrate_vault_to_sqlite.py`); use lowercase no-hyphen `name` (e.g. `homeassistant` not `home-assistant`)
+1. Insert a new row into the `applications` table via `sqlite3` directly (e.g. `INSERT OR REPLACE`); use lowercase no-hyphen `name` (e.g. `homeassistant` not `home-assistant`)
 2. Set `check_current` and `check_latest` columns plus `target` URL
 3. Populate both `github` and `dockerhub` columns when available (Docker Hub preferred automatically)
 4. If the app uses AWX upgrade: set `upgrade: ansible-manifest` or `upgrade: ansible-helm`, and add a matching `{name}-{instance}` entry in `k3s_applications.yml`
@@ -359,4 +359,3 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 - **`extra_manifests`** is stored as JSON text, converted to/from a `list` on read/write
 - **In-memory shape**: `VersionManager.notes` is `[{"id": <row id>, "frontmatter": {...}}, ...]` — the TUI reads `vm.notes[idx]["frontmatter"]` directly, so this shape must be preserved by any future storage change
 - **Database path**: Set via `DATABASE_PATH` env var; default is `data/version_checker.db` inside the repo (gitignored)
-- **One-time vault migration**: `migrate_vault_to_sqlite.py` imports the legacy Obsidian `.md` notes into SQLite; it is read-only against the vault and safe to re-run (`INSERT OR REPLACE` keyed on `name`+`instance`). Not used by the running app.

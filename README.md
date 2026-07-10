@@ -130,9 +130,6 @@ One row per `(name, instance)` pair:
 ### `transactions` table
 One row per upgrade actually triggered — `name`, `instance`, `upgrade_method`, `from_version`, `to_version`, `timestamp`, `detail` — giving a full audit trail instead of a single overwritten `last_upgraded` value. Written by `VersionManager.log_transaction()`.
 
-### Migrating from the old Obsidian vault
-`migrate_vault_to_sqlite.py` is a one-time, read-only importer for anyone still on the legacy markdown-notes storage: `./migrate_vault_to_sqlite.py --vault /path/to/vault/Software`. It never modifies the `.md` files and is safe to re-run.
-
 ## Supported Check Methods
 
 ### Current Version Methods (`Check_Current`)
@@ -181,7 +178,6 @@ Applications that run across multiple environments are tracked separately by ins
 
 - **`version_manager.py`** - Core Python class handling all version checking logic
 - **`check_versions.py`** - Command-line interface with multi-instance support
-- **`migrate_vault_to_sqlite.py`** - One-time, read-only importer from the legacy Obsidian vault into SQLite
 - **`requirements.txt`** - Python dependencies (requests, paho-mqtt, PyYAML, textual)
 - **`config.py`** - Configuration and credentials (not committed to git)
 - **`src/db.py`** - SQLite schema and connection helper
