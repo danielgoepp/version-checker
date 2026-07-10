@@ -16,6 +16,7 @@ Note: This is for my specific infrastructure only, not a general purpose app. Th
 - **API Caching**: LRU caching on GitHub and Docker Hub API calls for ~383,000x speedup on repeated calls
 - **Security**: No shell=True in subprocess calls - all commands use list-based construction to prevent command injection
 - **Concurrent Execution**: ThreadPoolExecutor for parallel version checking with thread-safe row writes
+- **File Logging**: All output (stdout + stderr, including tracebacks) is mirrored to `logs/version_checker.log` (gitignored, appended across runs with a `=== timestamp ===` banner per invocation) via `src/log_utils.py`. CLI invocations tee `sys.stdout`/`sys.stderr` directly (`enable_file_logging()`); the TUI instead writes into the log file from `_LogWriter` (`src/tui/app.py`) so only application-level output reaches the file, not raw Textual terminal-rendering escape codes
 
 ## Database Schema
 

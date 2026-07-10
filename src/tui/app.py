@@ -289,6 +289,8 @@ class _LogWriter:
     def write(self, text: str) -> None:
         if not text:
             return
+        self.app.log_file.write(text)
+        self.app.log_file.flush()
         *complete_lines, self._pending = (self._pending + text).split("\n")
         log = self.app.query_one(RichLog)
         for line in complete_lines:
@@ -330,9 +332,10 @@ class VersionCheckerApp(App):
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self, vm):
+    def __init__(self, vm, log_file):
         super().__init__()
         self.vm = vm
+        self.log_file = log_file
         self.selected: set[int] = set()
         self.view_mode = "updates"
         self.busy = False
@@ -541,5 +544,5 @@ class VersionCheckerApp(App):
         self.query_one(DataTable).focus()
 
 
-def run_tui(vm) -> None:
-    VersionCheckerApp(vm).run()
+def run_tui(vm, log_file) -> None:
+    VersionCheckerApp(vm, log_file).run()

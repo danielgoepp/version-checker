@@ -115,6 +115,10 @@ def main():
 
     args = parser.parse_args()
 
+    from src.log_utils import enable_file_logging, open_log_file
+
+    log_file = open_log_file() if args.tui else enable_file_logging()
+
     from version_manager import VersionManager
 
     vm = VersionManager(args.db)
@@ -126,7 +130,7 @@ def main():
     if args.tui:
         from src.tui.app import run_tui
 
-        run_tui(vm)
+        run_tui(vm, log_file)
     elif args.check_all:
         vm.check_all_applications()
     elif args.summary:

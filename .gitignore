@@ -32,6 +32,9 @@ wheels/
 # SQLite database (application state + transaction history)
 data/*.db
 
+# Application log file
+logs/
+
 # Excel temporary files
 ~$*.xlsx
 *.xlsx
