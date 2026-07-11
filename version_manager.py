@@ -85,7 +85,7 @@ from src.checkers.vault import get_vault_version as get_vault_kubectl_version, g
 from src.checkers.uptime_kuma import (
     get_uptime_kuma_version as get_uptime_kuma_api_version,
 )
-from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, trigger_awx_esphome_upgrade, trigger_vault_upgrade_workflow, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
+from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, trigger_awx_esphome_upgrade, trigger_awx_calico_upgrade, trigger_vault_upgrade_workflow, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
 import config
 
 
@@ -918,6 +918,24 @@ class VersionManager:
                     if not dry_run:
                         self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                         self.log_transaction(idx, "ansible-esphome", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                else:
+                    skipped += 1
+                continue
+
+            if upgrade_method == "ansible-calico":
+                latest_version = app_data.get("Latest_Version", "") or ""
+                if not latest_version:
+                    print(f"  Skipping {label}: no latest version known")
+                    skipped += 1
+                    continue
+                target_version = latest_version if latest_version.startswith("v") else f"v{latest_version}"
+                print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
+                success = trigger_awx_calico_upgrade(target_version, instance, dry_run=dry_run)
+                if success:
+                    launched += 1
+                    if not dry_run:
+                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                        self.log_transaction(idx, "ansible-calico", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
                 else:
                     skipped += 1
                 continue
