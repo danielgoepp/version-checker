@@ -15,7 +15,7 @@ Note: This is for my specific infrastructure only, not a general purpose app. Th
 - **Unified Kernel Checking**: Single `linux_kernel.py` handles all Linux distributions
 - **API Caching**: LRU caching on GitHub and Docker Hub API calls for ~383,000x speedup on repeated calls
 - **Security**: No shell=True in subprocess calls - all commands use list-based construction to prevent command injection
-- **Concurrent Execution**: ThreadPoolExecutor for parallel version checking with thread-safe row writes
+- **Concurrent Execution**: `check_all_applications()` runs checks via `ThreadPoolExecutor` (default 8 workers, `--workers` to override). Each app's output (including nested prints from checker modules, e.g. zigbee2mqtt's MQTT wait) is buffered per-thread and flushed as one atomic write, so concurrent checks can't interleave mid-line. Default output is one condensed summary line per app (`icon name (instance): current -> latest (status)`); pass `--verbose` (CLI) or `verbose=True` to get the full multi-line detail block per app that `--app` single-application checks always show. The shared SQLite connection's write path (`update_row_data`) is guarded by `VersionManager._db_lock` (a `threading.Lock()`) since `sqlite3.Connection` isn't safe for concurrent `execute`/`commit` calls from multiple threads even with `check_same_thread=False`
 - **File Logging**: All output (stdout + stderr, including tracebacks) is mirrored to `logs/version_checker.log` (gitignored, appended across runs with a `=== timestamp ===` banner per invocation) via `src/log_utils.py`. CLI invocations tee `sys.stdout`/`sys.stderr` directly (`enable_file_logging()`); the TUI instead writes into the log file from `_LogWriter` (`src/tui/app.py`) so only application-level output reaches the file, not raw Textual terminal-rendering escape codes
 
 ## Database Schema
@@ -33,7 +33,7 @@ One row per `{name, instance}` pair (`UNIQUE(name, instance)`). Columns (snake_c
 | `type` | `Type` | Application type |
 | `category` | `Category` | Category grouping |
 | `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
-| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply), `ansible-esphome` (ESPHome device OTA via AWX), `ansible-calico` (Calico CNI operator upgrade via AWX), `ansible-uos` (UniFi OS Server firmware upgrade via AWX) |
+| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (update `helm_values_file` + AWX when `pinned`; AWX only when `latest`), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply), `ansible-esphome` (ESPHome device OTA via AWX), `ansible-llm` (LLM component upgrade via AWX), `ansible-calico` (Calico CNI operator upgrade via AWX), `ansible-uos` (UniFi OS Server firmware upgrade via AWX) |
 | `extra_manifests` | `Extra_Manifests` | JSON-encoded list of extra manifest paths (relative to k3s-config root) updated alongside the main manifest during `ansible-cr` upgrades |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
 | `esphome_key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
@@ -46,6 +46,7 @@ One row per `{name, instance}` pair (`UNIQUE(name, instance)`). Columns (snake_c
 | `last_upgraded` | `Last_Upgraded` | Timestamp of last successful upgrade (also recorded per-event in `transactions`) |
 | `check_current` | `Check_Current` | Method for current version detection |
 | `check_latest` | `Check_Latest` | Method for latest version lookup |
+| `helm_values_file` | `Helm_Values_File` | Path (relative to k3s-config root) to the Helm values file updated during `ansible-helm` upgrades of `pinned` apps (e.g. vault) |
 | `library_github` | `Library_GitHub` | GitHub repo path for the ESPHome project library (e.g. `konnected-io/konnected-esphome`) — used by airgradient and konnected to track library version separately from ESPHome version |
 | `current_library_version` | `Current_Library_Version` | Current version of the ESPHome project library running on the device |
 | `latest_library_version` | `Latest_Library_Version` | Latest available version of the ESPHome project library |
@@ -81,10 +82,9 @@ Applications can have multiple instances tracked separately (one note per instan
 - **Home Assistant**: prod, morgspi, mudderpi
 - **Kopia**: ssd, hdd, b2 (backup nodes)
 - **Zigbee2MQTT**: zigbee11, zigbee15
-- **Telegraf**: vm, graylog
+- **Telegraf**: mqtt-to-vms, mqtt-to-graylog, upsd-to-vms
 - **Konnected**: car, workshop
-- **Traefik**: prod, mudderpi, morgspi
-- **PostgreSQL**: grafana-prod, hertzbeat-prod, homeassistant-prod (CNPG clusters)
+- **CNPG** (`cnpg`): doholm-prod, grafana-prod, homeassistant-prod (PostgreSQL clusters), operator (CNPG operator itself), plugin-barman-cloud (Barman Cloud plugin)
 - **UniFi Network**: application (Network Application version), uos (UniFi OS Server firmware version)
 - **BLE Proxy**: bedroom, garage, greatroom, studio-a, workshop
 
@@ -158,6 +158,7 @@ The system uses two separate fields for version checking:
 - **config.py**: Centralized configuration and credential storage (loads `.env` file)
 - **Database**: `config.DATABASE_PATH` (env: `DATABASE_PATH`, default: `data/version_checker.db` inside the repo)
 - **MQTT**: `config.MQTT_BROKER`, `config.MQTT_USERNAME`, `config.MQTT_PASSWORD`
+- **Proxmox**: `config.PROXMOX_API_TOKEN` (required; format `user@realm!tokenid=uuid`)
 - **Home Assistant**: `config.HA_TOKENS` dictionary by instance
 - **OPNsense**: `config.OPNSENSE_API_KEY`, `config.OPNSENSE_API_SECRET`
 - **AWX**: `config.AWX_API_TOKENS` dict by instance (env: `AWX_API_TOKEN_PROD`, etc.)
@@ -170,13 +171,14 @@ The system uses two separate fields for version checking:
 - **Uptime Kuma**: `config.UPTIME_KUMA_USERNAME`, `config.UPTIME_KUMA_PASSWORD`
 
 ### AWX Upgrade Integration
-- **AWX base URL**: `https://awx-prod.goepp.net`, k3s job template ID: 32, ESPHome job template ID: 31
+- **AWX base URL**: `https://awx-prod.goepp.net` (`AWX_BASE_URL` in `src/checkers/upgrade.py`). Job template IDs: k3s Application Update 32, ESPHome 31, server apt upgrade 47, LLM component upgrade 48, UniFi OS Server upgrade (`ui_network_upgrade`) 42; vault upgrades go through **workflow** job template 50 (`/api/v2/workflow_job_templates/`, a different endpoint than the rest)
 - **app_name key**: Constructed as `{name}-{instance}` (e.g. `homeassistant-prod`) — **must match** the key in `k3s_applications.yml`
 - **extra_vars**: Sent as a JSON string: `{"extra_vars": "{\"app_name\": \"homeassistant-prod\"}"}`
 - **AWX survey**: Uses free `text` type — no hardcoded allowlist, accepts any app_name
 - **AWX trigger**: Automatic when `upgrade` is `ansible-manifest` or `ansible-helm`; no separate `awx` field needed
 - **`ansible-manifest`** upgrade method: updates the manifest file in k3s-config repo (git add/commit/push), then triggers AWX
-- **`ansible-helm`** upgrade method: triggers AWX directly (no manifest update)
+- **`ansible-helm`** upgrade method: behavior depends on `version_pin`. For `latest`: triggers AWX directly, no manifest update. For `pinned`: first updates the file at `helm_values_file` (git add/commit/push, same shape as `ansible-manifest`), then triggers AWX — **except** for `app_name == "vault"`, which instead triggers the dedicated AWX vault-upgrade **workflow** (template 50) via `trigger_vault_upgrade_workflow()`. Vault's `k8s` and `prod` instances share one Helm values file/release, so the workflow only fires once per upgrade run; the second instance is logged to `transactions` with `detail: "covered by shared vault upgrade workflow"` but skipped
+- **`ansible-llm`** upgrade method: triggers AWX job template 48 with `extra_vars={"llm_upgrade_component": <app_name>}` via `trigger_awx_llm_upgrade()`
 - **`ansible-esphome`** upgrade method: triggers AWX job template 31 with `target_pattern=<app_name>`; fires once for all instances (does not wait for job completion due to long compile times)
 - **`ansible-apt`** upgrade method: triggers AWX job template 47 (server apt upgrade). For k3s servers (`category: Kubernetes`), a **kernel-only** pending update (`latest_version` == `0 packages + kernel`) is skipped — those nodes reboot for kernel upgrades via separate orchestration, and a plain `apt upgrade` holds back the new kernel anyway. k3s servers still upgrade when real packages are pending (`N packages` or `N packages + kernel`). `--force` bypasses this skip.
 - **`ansible-calico`** upgrade method: triggers AWX job template 32 (same K3s Application Update template, not a separate one) with `app_name=calico` plus a second extra_var `calico_target_version=v<Latest_Version>` (`v` prefix added since `Latest_Version` is stored without it, GitHub-release-style). Routes through `k3s_applications.yml`'s `calico` entry (`deployment_method: calico-operator`) → `tasks/k3s-update-calico.yaml` in the ansible repo, which applies the versioned Tigera operator CRDs/manifest server-side and waits for `TigeraStatus` to report `Available`. No local k3s-config manifest is updated — the manifest URLs are computed from `calico_target_version` at runtime, so this method skips the manifest-update/git-commit step entirely. Exception to the `{name}-{instance}` `k3s_applications.yml` keying convention: the entry is keyed as plain `calico` (single instance, no suffix)
@@ -201,11 +203,11 @@ The system uses two separate fields for version checking:
 - **K3s**: `v1.33.2+k3s1` → `1.33.2+k3s1`
 - **Kopia**: Strip build info after version number
 - **ESPHome**: JSON response with version field
-- **pgAdmin**: `REL-9_8` → `9.8` (GitHub tag format conversion)
+- **pgAdmin**: `dpage/pgadmin4:9.16` → `9.16` (Docker Hub tag; `check_latest: docker_hub`, current version also read from the running container image tag)
 - **PostgreSQL**: `PostgreSQL 17.2 (Debian...)` → `17.2` (SQL query parsing)
 - **CloudNativePG**: `ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0` → `1.25.0` (container image tag)
 - **Grafana**: `{"version":"12.0.2",...}` → `12.0.2` (internal health API JSON parsing)
-- **Vault**: `{"version":"1.18.4",...}` → `1.18.4` (sys/health API JSON parsing)
+- **Vault**: `hashicorp/vault:1.18.4` / `hashicorp/vault-k8s:1.7.5` → `1.18.4` / `1.7.5` (running container image tag, not an API call — `src/checkers/vault.py`)
 
 ### MQTT Version Discovery
 - **Topic pattern**: `{instance}/bridge/info`
@@ -214,10 +216,11 @@ The system uses two separate fields for version checking:
 
 ### SSH-based Kernel Checking (ssh_apt method)
 - **current_version**: Shows "OS Name - Kernel Version" (e.g. "Ubuntu 24.04.3 LTS - 6.8.0-79-generic")
-- **latest_version**: Shows "No updates" or "Update available"
+- **latest_version**: `"No updates"`, or `"N packages"` / `"N packages + kernel"` (e.g. `"14 packages + kernel"`) — never the literal string "Update available"
 - **Unified Logic**: Single `linux_kernel.py` handles Ubuntu and Raspberry Pi
-- **Package Detection**: Checks `linux-image-generic` (Ubuntu) and `raspberrypi-kernel` (RPi)
-- **apt update**: Runs `apt-get update -q > /dev/null 2>&1` silently before `apt list --upgradable` to ensure fresh package data
+- **Package Detection**: RPi kernel updates appear directly in `apt list --upgradable` (`raspberrypi-kernel`/`linux-image-rpi-`); Ubuntu kernel updates don't, so they're detected by comparing what `linux-image-generic`'s `Depends:` points to against the running kernel
+- **LXC containers**: a running kernel ending in `-pve` means the container shares the Proxmox host's kernel and can't update it independently — always reported as no kernel update regardless of what the metapackage depends on
+- **apt update**: Runs `sudo -n apt-get update -q > /dev/null 2>&1` silently before `apt list --upgradable` to ensure fresh package data
 
 ## Shell Autocomplete
 Tab completion for `--app` and `--instance` is provided via `argcomplete`. The registration line lives in `~/.oh-my-zsh/custom/shortcuts.zsh`:
@@ -230,7 +233,7 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 `check_versions.py --tui` launches a full-screen Textual app (`src/tui/app.py`) that wraps `VersionManager` — it calls the exact same `check_all_applications()` / `upgrade_application()` methods the CLI uses, no parallel logic. It starts in an "Updates" view (only apps with `status: Update Available`), which is a read filter over `vm.notes`, not a separate data source.
 - **Navigation**: `↑`/`↓` moves the DataTable cursor; `Space` toggles selection (marked with `✓`) on the highlighted row; `a` selects/deselects all currently visible rows
 - **`v`**: cycles through "Updates" → "All Applications" → "Disabled" views (in that order). "Disabled" shows only apps with `enabled: False`, overriding the usual enabled-only filter applied to the other two views
-- **`c`**: runs a full check-all (`vm.check_all_applications()`) in a background thread; stdout from the manager is redirected into the on-screen `RichLog` panel via `contextlib.redirect_stdout`
+- **`c`**: runs a full check-all (`vm.check_all_applications()`, condensed one-line-per-app output since the TUI doesn't pass `verbose=True`) in a background thread; stdout from the manager (including the atomic per-app writes from `check_all_applications`'s internal worker pool) is redirected into the on-screen `RichLog` panel via `contextlib.redirect_stdout`
 - **`C`** (Shift+C): rechecks only the selected rows (or the highlighted row if nothing is selected) via `vm.check_single_application(idx)` per row — avoids a full check-all just to see whether one app changed. Bound as literal `"C"`, not `"shift+c"` — most terminals send a bare capital letter for Shift+(any letter) rather than a distinct modifier combo, and Textual's `"shift+c"` binding only matches terminals using an extended keyboard protocol (e.g. Kitty), so it silently never fires in a normal terminal
 - **`u`**: upgrades every selected row — for each, calls `vm.upgrade_application(name, instance=instance)` (no `force`, so existing skip logic for "already up to date" / kernel-only apt updates still applies); requires confirmation via a modal dialog before running (upgrades can commit/push to the k3s-config repo and trigger AWX jobs, so confirmation is deliberate). After all upgrades are triggered, each affected row is automatically rechecked — since AWX upgrades run asynchronously, this recheck may still show the pre-upgrade version if the job hasn't rolled out yet; use `C` later to check again
 - **`U`** (Shift+U): same flow as `u`, but calls `vm.upgrade_application(..., force=True)`, bypassing the "already up to date" / kernel-only-apt skip checks — mirrors CLI `--upgrade --force`. Useful when a prior upgrade attempt already bumped the version but failed partway, so a plain `u` would be skipped as a no-op. Bound as literal `"U"`, not `"shift+u"`, for the same terminal-keyboard-protocol reason as `C` (see above). Same confirmation modal as `u`, with "Force upgrade" in the prompt text
@@ -251,6 +254,9 @@ eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-pyt
 
 # Check all with custom worker count
 ./check_versions.py --check-all --workers 20
+
+# Check all with full per-application detail instead of condensed summary lines
+./check_versions.py --check-all --verbose
 
 # Launch the interactive terminal UI (starts in Updates view)
 ./check_versions.py --tui

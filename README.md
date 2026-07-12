@@ -42,8 +42,11 @@ pip install -r requirements.txt
 ### Command Line Interface
 
 ```bash
-# Check all applications and instances
+# Check all applications and instances (concurrent, condensed one-line-per-app output)
 ./check_versions.py --check-all
+
+# Check all with a custom worker count and full per-application detail
+./check_versions.py --check-all --workers 20 --verbose
 
 # Show summary with status icons
 ./check_versions.py --summary
@@ -92,7 +95,7 @@ Launches a full-screen, keyboard-driven interface (built with [Textual](https://
 | `Space` | Toggle selection of the highlighted application |
 | `a` | Select/deselect all visible applications |
 | `v` | Toggle between "Updates" view and "All Applications" view |
-| `c` | Run a check-all across every enabled application |
+| `c` | Run a concurrent check-all across every enabled application (condensed one-line-per-app output) |
 | `Shift+C` | Recheck just the selected (or highlighted) application(s) — no full check-all needed |
 | `u` | Upgrade all selected applications (with confirmation prompt); automatically rechecks each afterward |
 | `e` | Edit every field of the highlighted application in a form |
