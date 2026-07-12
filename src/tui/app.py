@@ -326,6 +326,7 @@ class VersionCheckerApp(App):
         Binding("c", "check_all", "Check All"),
         Binding("C", "check_selected", "Recheck Selected"),
         Binding("u", "upgrade_selected", "Upgrade Selected"),
+        Binding("U", "upgrade_selected_force", "Force Upgrade Selected"),
         Binding("e", "edit_selected", "Edit"),
         Binding("h", "show_history", "History"),
         Binding("r", "refresh_view", "Refresh"),
@@ -481,34 +482,42 @@ class VersionCheckerApp(App):
             self.vm.check_single_application(idx)
 
     def action_upgrade_selected(self) -> None:
+        self._upgrade_selected(force=False)
+
+    def action_upgrade_selected_force(self) -> None:
+        self._upgrade_selected(force=True)
+
+    def _upgrade_selected(self, force: bool) -> None:
         if self.busy:
             return
         if not self.selected:
             self.notify("No applications selected", severity="warning")
             return
+        label = "Force upgrade" if force else "Upgrade"
         self.push_screen(
-            ConfirmScreen(f"Upgrade {len(self.selected)} selected application(s)?"),
-            self._handle_upgrade_confirm,
+            ConfirmScreen(f"{label} {len(self.selected)} selected application(s)?"),
+            lambda confirmed: self._handle_upgrade_confirm(confirmed, force),
         )
 
-    def _handle_upgrade_confirm(self, confirmed: bool | None) -> None:
+    def _handle_upgrade_confirm(self, confirmed: bool | None, force: bool) -> None:
         if not confirmed:
             return
         idxs = sorted(self.selected)
         self._set_busy(True)
-        self.query_one(RichLog).write(f"[bold]Upgrading {len(idxs)} application(s)...[/bold]")
+        label = "Force-upgrading" if force else "Upgrading"
+        self.query_one(RichLog).write(f"[bold]{label} {len(idxs)} application(s)...[/bold]")
         self.run_worker(
-            lambda: self._run_background(lambda: self._do_upgrade(idxs), "Upgrade run complete"),
+            lambda: self._run_background(lambda: self._do_upgrade(idxs, force), "Upgrade run complete"),
             thread=True,
         )
 
-    def _do_upgrade(self, idxs: list[int]) -> None:
+    def _do_upgrade(self, idxs: list[int], force: bool = False) -> None:
         for idx in idxs:
             fm = self.vm.notes[idx]["frontmatter"]
             name = fm.get("name", "")
             instance = fm.get("instance", "")
-            print(f"--- Upgrading {name} ({instance}) ---")
-            self.vm.upgrade_application(name, instance=instance)
+            print(f"--- Upgrading {name} ({instance}){' [force]' if force else ''} ---")
+            self.vm.upgrade_application(name, instance=instance, force=force)
         print()
         print("--- Rechecking upgraded application(s) (may still show the old version if the upgrade job hasn't finished rolling out) ---")
         for idx in idxs:
