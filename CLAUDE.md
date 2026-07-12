@@ -33,7 +33,7 @@ One row per `{name, instance}` pair (`UNIQUE(name, instance)`). Columns (snake_c
 | `type` | `Type` | Application type |
 | `category` | `Category` | Category grouping |
 | `version_pin` | `Version_Pin` | `latest` = no manifest pin; `pinned` = version hardcoded in manifest; other = channel pin (e.g. `beta`, `18-standard-trixie`) |
-| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply), `ansible-esphome` (ESPHome device OTA via AWX), `ansible-calico` (Calico CNI operator upgrade via AWX) |
+| `upgrade` | `Upgrade` | Upgrade method: `ansible-manifest` (update manifest + AWX), `ansible-helm` (AWX only), `ansible-apt` (apt via AWX), `ansible-cr` (update manifest + kubectl apply), `ansible-esphome` (ESPHome device OTA via AWX), `ansible-calico` (Calico CNI operator upgrade via AWX), `ansible-uos` (UniFi OS Server firmware upgrade via AWX) |
 | `extra_manifests` | `Extra_Manifests` | JSON-encoded list of extra manifest paths (relative to k3s-config root) updated alongside the main manifest during `ansible-cr` upgrades |
 | `target` | `Target` | Full URL (`https://hostname:port`) |
 | `esphome_key` | `Esphome_Key` | ESPHome Noise PSK (base64-encoded) for encrypted API connections |
@@ -59,7 +59,7 @@ One row per upgrade actually triggered (mirrors every `Last_Upgraded` write in `
 | `id` | Autoincrement primary key |
 | `application_id` | FK to `applications.id` |
 | `name`, `instance` | Denormalized so history survives even if the app row is later edited/removed |
-| `upgrade_method` | The concrete method used (`ansible-manifest`, `ansible-helm`, `ansible-apt`, `ansible-cr`, `ansible-esphome`, `ansible-llm`, `ansible-calico`) |
+| `upgrade_method` | The concrete method used (`ansible-manifest`, `ansible-helm`, `ansible-apt`, `ansible-cr`, `ansible-esphome`, `ansible-llm`, `ansible-calico`, `ansible-uos`) |
 | `from_version`, `to_version` | `Current_Version`/`Latest_Version` at the moment the upgrade was triggered |
 | `timestamp` | When the upgrade was triggered |
 | `detail` | Optional free text (e.g. "covered by shared vault upgrade workflow") |
@@ -180,6 +180,7 @@ The system uses two separate fields for version checking:
 - **`ansible-esphome`** upgrade method: triggers AWX job template 31 with `target_pattern=<app_name>`; fires once for all instances (does not wait for job completion due to long compile times)
 - **`ansible-apt`** upgrade method: triggers AWX job template 47 (server apt upgrade). For k3s servers (`category: Kubernetes`), a **kernel-only** pending update (`latest_version` == `0 packages + kernel`) is skipped — those nodes reboot for kernel upgrades via separate orchestration, and a plain `apt upgrade` holds back the new kernel anyway. k3s servers still upgrade when real packages are pending (`N packages` or `N packages + kernel`). `--force` bypasses this skip.
 - **`ansible-calico`** upgrade method: triggers AWX job template 32 (same K3s Application Update template, not a separate one) with `app_name=calico` plus a second extra_var `calico_target_version=v<Latest_Version>` (`v` prefix added since `Latest_Version` is stored without it, GitHub-release-style). Routes through `k3s_applications.yml`'s `calico` entry (`deployment_method: calico-operator`) → `tasks/k3s-update-calico.yaml` in the ansible repo, which applies the versioned Tigera operator CRDs/manifest server-side and waits for `TigeraStatus` to report `Available`. No local k3s-config manifest is updated — the manifest URLs are computed from `calico_target_version` at runtime, so this method skips the manifest-update/git-commit step entirely. Exception to the `{name}-{instance}` `k3s_applications.yml` keying convention: the entry is keyed as plain `calico` (single instance, no suffix)
+- **`ansible-uos`** upgrade method: triggers AWX job template 42 (`ui_network_upgrade`) with no `extra_vars` (self-contained playbook/inventory); fires once, does not wait for job completion. Used for `ui-network` instance `uos` only (the `application` instance remains `Manual`)
 - **`--force`** flag: skips version comparison and manifest file update, goes straight to AWX trigger
 - **k3s_applications.yml**: All entries are individual `manifest` or `helm` entries — no `manifest-multi` looping. Each entry is `{name}-{instance}` keyed independently (except `calico`, see above)
 
