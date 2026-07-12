@@ -53,6 +53,17 @@ def main():
     parser.add_argument(
         "--check-all", action="store_true", help="Check all applications and exit"
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Number of concurrent workers for --check-all (default: 8)",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="With --check-all, show full per-application detail instead of one summary line each",
+    )
     parser.add_argument("--summary", action="store_true", help="Show summary and exit")
     parser.add_argument(
         "--list", action="store_true", help="List all applications and exit"
@@ -132,7 +143,7 @@ def main():
 
         run_tui(vm, log_file)
     elif args.check_all:
-        vm.check_all_applications()
+        vm.check_all_applications(max_workers=args.workers, verbose=args.verbose)
     elif args.summary:
         vm.show_summary()
     elif args.list:

@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import io
 import json
 import re
 import sys
+import threading
 import urllib3
 from pathlib import Path
 
@@ -165,6 +168,7 @@ class VersionManager:
         self.conn = db.get_connection(self.db_path)
         db.init_db(self.conn)
         self.notes = []
+        self._db_lock = threading.Lock()
         self.load_data()
 
     def load_data(self):
@@ -254,8 +258,9 @@ class VersionManager:
         set_clause = ", ".join(f"{col} = ?" for col in changed_columns)
         values = [_frontmatter_value_to_db(col, val) for col, val in changed_columns.items()]
         values.append(self.notes[idx]["id"])
-        self.conn.execute(f"UPDATE applications SET {set_clause} WHERE id = ?", values)
-        self.conn.commit()
+        with self._db_lock:
+            self.conn.execute(f"UPDATE applications SET {set_clause} WHERE id = ?", values)
+            self.conn.commit()
 
     def find_application_row(self, app_name: str, instance: str = "prod") -> int | None:
         for idx, note in enumerate(self.notes):
@@ -527,7 +532,7 @@ class VersionManager:
 
         return current_version, latest_version, firmware_update_available, library_current_version
 
-    def check_single_application(self, idx: int):
+    def check_single_application(self, idx: int, verbose: bool = True):
         app_data = self.get_row_data(idx)
         app_name = app_data.get("Name", "")
         instance = app_data.get("Instance", "prod")
@@ -537,7 +542,8 @@ class VersionManager:
         dockerhub_repo = app_data.get("DockerHub", "")
         library_github = app_data.get("Library_GitHub", "")
 
-        print(f"Checking {app_name} ({instance})...")
+        if verbose:
+            print(f"Checking {app_name} ({instance})...")
 
         if check_latest == "proxmox":
             current_version, ssh_latest_version, firmware_update_available, library_current_version = (
@@ -618,19 +624,28 @@ class VersionManager:
         latest_display = latest_version if latest_version else "N/A"
         icon = self.STATUS_ICONS.get(status, "")
 
-        print(f"  Current: {current_display}")
-        print(f"  Latest: {latest_display}")
-        if library_current_version or library_latest_version:
-            lib_current_display = library_current_version if library_current_version else "N/A"
-            lib_latest_display = library_latest_version if library_latest_version else "N/A"
-            print(f"  Library Current: {lib_current_display}")
-            print(f"  Library Latest: {lib_latest_display}")
-        print(f"  Status: {icon} {status}")
-        print()
+        if verbose:
+            print(f"  Current: {current_display}")
+            print(f"  Latest: {latest_display}")
+            if library_current_version or library_latest_version:
+                lib_current_display = library_current_version if library_current_version else "N/A"
+                lib_latest_display = library_latest_version if library_latest_version else "N/A"
+                print(f"  Library Current: {lib_current_display}")
+                print(f"  Library Latest: {lib_latest_display}")
+            print(f"  Status: {icon} {status}")
+            print()
+        else:
+            print(f"{icon} {app_name} ({instance}): {current_display} -> {latest_display} ({status})")
 
         return f"{app_name} ({instance})" if not current_version else None
 
-    def check_all_applications(self):
+    def check_all_applications(self, max_workers: int = 8, verbose: bool = False):
+        """Check versions for all enabled applications concurrently.
+
+        Each app's output (including any nested prints from checker modules,
+        e.g. zigbee2mqtt's MQTT wait) is buffered per-thread and flushed as a
+        single atomic write, so concurrent checks can't interleave mid-line.
+        """
         print("Starting version check for all applications...")
         print("=" * 50)
 
@@ -645,14 +660,61 @@ class VersionManager:
         total_apps = len(enabled_indices)
         if skipped > 0:
             print(f"Skipping {skipped} disabled applications")
-        print(f"Checking {total_apps} enabled applications...")
+        print(f"Checking {total_apps} enabled applications ({max_workers} workers)...")
         print()
 
         unavailable = []
-        for idx in enabled_indices:
-            label = self.check_single_application(idx)
-            if label:
-                unavailable.append(label)
+        completed = 0
+
+        _thread_local = threading.local()
+        _real_stdout = sys.stdout
+        _write_lock = threading.Lock()
+
+        class _ThreadBufferedStdout:
+            def write(self, text):
+                buf = getattr(_thread_local, "buffer", None)
+                if buf is not None:
+                    buf.write(text)
+                else:
+                    _real_stdout.write(text)
+
+            def flush(self):
+                _real_stdout.flush()
+
+        def _run_one(idx):
+            _thread_local.buffer = io.StringIO()
+            try:
+                label = self.check_single_application(idx, verbose=verbose)
+                return idx, _thread_local.buffer.getvalue(), label, None
+            except Exception as e:
+                return idx, _thread_local.buffer.getvalue(), None, e
+            finally:
+                _thread_local.buffer = None
+
+        sys.stdout = _ThreadBufferedStdout()
+        try:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(_run_one, idx) for idx in enabled_indices]
+                for future in as_completed(futures):
+                    idx, output, label, error = future.result()
+                    completed += 1
+                    with _write_lock:
+                        if not verbose:
+                            _real_stdout.write(f"[{completed}/{total_apps}] ")
+                        if output:
+                            _real_stdout.write(output)
+                            if not output.endswith("\n"):
+                                _real_stdout.write("\n")
+                        if error:
+                            app_data = self.get_row_data(idx)
+                            _real_stdout.write(
+                                f"  Error checking {app_data.get('Name', '')} "
+                                f"({app_data.get('Instance', '')}): {error}\n"
+                            )
+                    if label:
+                        unavailable.append(label)
+        finally:
+            sys.stdout = _real_stdout
 
         print("=" * 50)
         print(f"Version check completed! Checked {total_apps} applications.")
