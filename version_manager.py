@@ -699,16 +699,24 @@ class VersionManager:
                     idx, output, label, error = future.result()
                     completed += 1
                     with _write_lock:
-                        if not verbose:
-                            _real_stdout.write(f"[{completed}/{total_apps}] ")
-                        if output:
-                            _real_stdout.write(output)
-                            if not output.endswith("\n"):
-                                _real_stdout.write("\n")
+                        if verbose:
+                            if output:
+                                _real_stdout.write(output)
+                                if not output.endswith("\n"):
+                                    _real_stdout.write("\n")
+                        elif not error:
+                            # Nested checker calls (kubectl lookups, apt/proxmox status
+                            # lines, etc.) print their own chatter into the buffer ahead
+                            # of check_single_application's own final summary line —
+                            # only that last line belongs in condensed output.
+                            lines = [l for l in output.splitlines() if l.strip()]
+                            summary = lines[-1] if lines else ""
+                            _real_stdout.write(f"[{completed}/{total_apps}] {summary}\n")
                         if error:
                             app_data = self.get_row_data(idx)
+                            prefix = f"[{completed}/{total_apps}] " if not verbose else ""
                             _real_stdout.write(
-                                f"  Error checking {app_data.get('Name', '')} "
+                                f"{prefix}  Error checking {app_data.get('Name', '')} "
                                 f"({app_data.get('Instance', '')}): {error}\n"
                             )
                     if label:

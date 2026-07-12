@@ -12,7 +12,6 @@ def get_zigbee2mqtt_version(instance):
             try:
                 data = json.loads(message.payload.decode())
                 current_version = data.get("version")
-                print(f"  {instance}: {current_version}")
             except Exception as e:
                 print(f"  {instance}: Error parsing MQTT message - {e}")
         
