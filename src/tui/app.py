@@ -357,6 +357,11 @@ class VersionCheckerApp(App):
         rows = []
         for idx, note in enumerate(self.vm.notes):
             fm = note["frontmatter"]
+            if self.view_mode == "disabled":
+                if fm.get("enabled", True) is True:
+                    continue
+                rows.append(idx)
+                continue
             if fm.get("enabled", True) is not True:
                 continue
             if self.view_mode == "updates" and fm.get("status") != "Update Available":
@@ -388,7 +393,7 @@ class VersionCheckerApp(App):
         if self.row_idx_map:
             table.move_cursor(row=min(cursor_row, len(self.row_idx_map) - 1))
 
-        view_label = "Updates" if self.view_mode == "updates" else "All Applications"
+        view_label = {"updates": "Updates", "all": "All Applications", "disabled": "Disabled"}[self.view_mode]
         self.sub_title = f"{view_label} — {len(self.row_idx_map)} apps, {len(self.selected)} selected"
 
     def _cursor_idx(self) -> list[int]:
@@ -417,7 +422,8 @@ class VersionCheckerApp(App):
         self.refresh_table()
 
     def action_toggle_view(self) -> None:
-        self.view_mode = "all" if self.view_mode == "updates" else "updates"
+        order = ["updates", "all", "disabled"]
+        self.view_mode = order[(order.index(self.view_mode) + 1) % len(order)]
         self.refresh_table()
 
     def action_refresh_view(self) -> None:
