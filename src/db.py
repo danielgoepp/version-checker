@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     timestamp TEXT NOT NULL,
     detail TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp);
 """
 
 
