@@ -1,6 +1,5 @@
 import config
-from .base import APIChecker
-from .utils import http_get, clean_version
+from .utils import http_get
 
 
 def get_graylog_current_version(instance, url):
@@ -41,8 +40,8 @@ def get_graylog_current_version(instance, url):
 
 def get_graylog_latest_version_from_repo(repository):
     headers = {}
-    if hasattr(__import__('config'), 'GITHUB_API_TOKEN') and __import__('config').GITHUB_API_TOKEN:
-        headers['Authorization'] = f'token {__import__("config").GITHUB_API_TOKEN}'
+    if config.GITHUB_API_TOKEN:
+        headers['Authorization'] = f'token {config.GITHUB_API_TOKEN}'
 
     data = http_get(f"https://api.github.com/repos/{repository}/tags?per_page=100", headers=headers)
     if data and isinstance(data, list):
@@ -64,8 +63,8 @@ def get_postgresql_latest_version_from_ghcr(repository):
         api_url = f"https://api.github.com/orgs/{org}/packages/container/{package_name}/versions"
         headers = {'Accept': 'application/vnd.github.v3+json'}
 
-        if hasattr(config, 'GITHUB_TOKEN') and config.GITHUB_TOKEN:
-            headers['Authorization'] = f'token {config.GITHUB_TOKEN}'
+        if config.GITHUB_API_TOKEN:
+            headers['Authorization'] = f'token {config.GITHUB_API_TOKEN}'
 
         response = requests.get(api_url, headers=headers, timeout=10)
         if response.status_code != 200:
