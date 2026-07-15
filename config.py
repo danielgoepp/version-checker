@@ -44,6 +44,10 @@ MQTT_PASSWORD = get_required_env('MQTT_PASSWORD', 'MQTT password')
 # Proxmox API credentials - REQUIRED
 PROXMOX_API_TOKEN = get_required_env('PROXMOX_API_TOKEN', 'Proxmox API token (format: user@realm!tokenid=uuid)')
 
+# Proxmox node used to read available package versions (any one cluster node)
+PROXMOX_APT_VERSIONS_URL = get_optional_env('PROXMOX_APT_VERSIONS_URL', 'https://pve11.goepp.net:8006', 'Base URL of the Proxmox node used for apt version checks')
+PROXMOX_APT_VERSIONS_NODE = get_optional_env('PROXMOX_APT_VERSIONS_NODE', 'pve11', 'Node name of the Proxmox node used for apt version checks')
+
 # Tailscale API credentials - REQUIRED for Tailscale checking
 TAILSCALE_ACCESS_TOKEN = get_optional_env('TAILSCALE_ACCESS_TOKEN', None, 'Tailscale API access token for device management')
 TAILSCALE_TAILNET = get_optional_env('TAILSCALE_TAILNET', None, 'Tailscale tailnet name (e.g., example.com)')
@@ -68,6 +72,9 @@ SYNCTHING_API_KEYS = {}
 syncthing_prod_key = get_optional_env('SYNCTHING_API_KEY_PROD', None, 'Syncthing production API key')
 if syncthing_prod_key:
     SYNCTHING_API_KEYS['prod'] = syncthing_prod_key
+
+# AWX base URL (upgrade job/workflow launches)
+AWX_BASE_URL = get_optional_env('AWX_BASE_URL', 'https://awx-prod.goepp.net', 'AWX base URL')
 
 # AWX API credentials - OPTIONAL (for version checking)
 AWX_API_TOKENS = {}
