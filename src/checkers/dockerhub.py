@@ -2,6 +2,17 @@ from functools import lru_cache
 from .utils import http_get
 import re
 
+_PRERELEASE_MARKERS = ('rc', 'beta', 'alpha', 'dev', 'nightly', 'unstable', 'edge')
+
+
+def _is_prerelease(tag_name):
+    # Component-based so e.g. "1.2.3-arch" isn't excluded by the 'rc' substring
+    return any(
+        part.startswith(marker)
+        for part in re.split(r'[-._]', tag_name.lower())
+        for marker in _PRERELEASE_MARKERS
+    )
+
 
 @lru_cache(maxsize=128)
 def _get_dockerhub_latest_version_cached(repository, version_pattern_str, exclude_tags_tuple):
@@ -22,22 +33,15 @@ def _get_dockerhub_latest_version_impl(repository, version_pattern=None, exclude
             version_pattern = re.compile(r'^v?(\d+\.\d+(?:\.\d+)?)(?:-[a-z][a-z0-9]*)?$')
 
         if exclude_tags is None:
-            exclude_tags = [
-                'latest', 'edge', 'dev', 'devel', 'develop', 'main', 'master',
-                'edge-ubuntu', 'edge-alpine', 'edge-debian',
-                'nightly', 'unstable', 'beta', 'alpha', 'rc'
-            ]
+            exclude_tags = ['latest', 'main', 'master']
 
         versions = []
 
         for tag in data['results']:
             tag_name = tag.get('name', '')
 
-            if tag_name in exclude_tags or any(excluded in tag_name.lower() for excluded in ['rc', 'beta', 'alpha', 'dev', 'nightly', 'unstable']):
+            if tag_name in exclude_tags or _is_prerelease(tag_name):
                 continue
-
-            if isinstance(version_pattern, str):
-                version_pattern = re.compile(version_pattern)
 
             match = version_pattern.match(tag_name)
             if match:
@@ -47,10 +51,11 @@ def _get_dockerhub_latest_version_impl(repository, version_pattern=None, exclude
         if versions:
             def version_key(v):
                 try:
-                    parts = v.split('.')
-                    return tuple(int(part) for part in parts)
+                    return tuple(int(part) for part in v.split('.'))
                 except (ValueError, AttributeError):
-                    return v
+                    # Unparseable versions sort last instead of crashing the
+                    # mixed tuple/str comparison
+                    return (-1,)
 
             versions.sort(key=version_key, reverse=True)
             return versions[0]
@@ -60,6 +65,12 @@ def _get_dockerhub_latest_version_impl(repository, version_pattern=None, exclude
     except Exception as e:
         print(f"  Error getting latest version from Docker Hub ({repository}): {e}")
         return None
+
+
+def clear_cache():
+    """Reset the per-run tag caches (see check_all_applications)."""
+    _get_dockerhub_latest_version_cached.cache_clear()
+    get_dockerhub_latest_tag.cache_clear()
 
 
 def get_dockerhub_latest_version(repository, version_pattern=None, exclude_tags=None):
@@ -83,9 +94,8 @@ def get_dockerhub_latest_tag(repository, include_prereleases=False):
             if tag_name == 'latest':
                 continue
 
-            if not include_prereleases:
-                if any(prerelease in tag_name.lower() for prerelease in ['rc', 'beta', 'alpha', 'edge', 'nightly']):
-                    continue
+            if not include_prereleases and _is_prerelease(tag_name):
+                continue
 
             return tag_name
 

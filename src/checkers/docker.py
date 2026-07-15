@@ -1,5 +1,5 @@
 import subprocess
-from .utils import print_error, print_version, extract_semantic_version
+from .utils import print_error
 
 def get_docker_version(instance, hostname):
     try:
@@ -8,7 +8,6 @@ def get_docker_version(instance, hostname):
 
         if result.returncode == 0 and result.stdout.strip():
             version = result.stdout.strip()
-            print_version(instance, version)
             return version
         else:
             print_error(instance, f"Error getting Docker version: {result.stderr}")

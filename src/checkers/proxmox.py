@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import json
+import re
 import requests
 import subprocess
-import os
 import config
 
 def get_ceph_version(instance):
@@ -21,7 +21,6 @@ def get_ceph_version(instance):
 
         if result.returncode == 0:
             output = result.stdout.strip()
-            import re
             match = re.search(r'ceph version (\d+\.\d+\.\d+)', output)
             if match:
                 return match.group(1)
@@ -95,9 +94,9 @@ def get_proxmox_version(instance, url):
         print(f"  Error checking Proxmox version for {instance}: {e}")
         return None
 
-def get_proxmox_latest_version(include_ceph=False, current_version=None):
+def get_proxmox_latest_version(include_ceph=False):
     try:
-        api_url = "https://pve11.goepp.net:8006/api2/json/nodes/pve11/apt/versions"
+        api_url = f"{config.PROXMOX_APT_VERSIONS_URL}/api2/json/nodes/{config.PROXMOX_APT_VERSIONS_NODE}/apt/versions"
         headers = {
             'Authorization': f'PVEAPIToken={config.PROXMOX_API_TOKEN}'
         }
@@ -117,7 +116,6 @@ def get_proxmox_latest_version(include_ceph=False, current_version=None):
                 if include_ceph:
                     for pkg in data.get('data', []):
                         if pkg.get('Package') == 'ceph':
-                            import re
                             ceph_ver = pkg.get('Version', '')
                             match = re.match(r'(\d+\.\d+\.\d+)', ceph_ver)
                             if match:

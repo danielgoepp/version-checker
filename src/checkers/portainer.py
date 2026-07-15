@@ -1,7 +1,7 @@
 import requests
 import urllib3
 import warnings
-from .utils import http_get, print_error
+from .utils import print_error
 
 
 def get_portainer_version(instance, url):

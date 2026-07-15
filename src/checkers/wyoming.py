@@ -2,6 +2,17 @@ from .base import KubernetesChecker
 import subprocess
 from .utils import print_error
 
+
+def get_rhasspy_version(instance, namespace):
+    if instance == "wyoming-openwakeword":
+        return get_wyoming_openwakeword_version(instance, namespace)
+    if instance == "wyoming-piper":
+        return get_wyoming_piper_version(instance, namespace)
+    if instance == "wyoming-whisper":
+        return get_wyoming_whisper_version(instance, namespace)
+    return None
+
+
 def get_wyoming_openwakeword_version(instance, namespace):
     checker = KubernetesChecker(instance, namespace)
     pod_name = checker.find_pod("wyoming-openwakeword")

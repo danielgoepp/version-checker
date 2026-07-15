@@ -1,5 +1,5 @@
 import requests
-from .utils import print_error, handle_timeout_error, handle_generic_error
+from .utils import print_error, handle_generic_error
 import config
 
 
@@ -33,6 +33,14 @@ def get_unifi_os_server_latest_version():
 
 
 UOS_HOST_ID = "fc90f597-c8fb-40f8-b6da-7efa1147cb70"
+
+
+def get_ui_network_version(instance, url):
+    # The uos instance tracks the UniFi OS Server firmware; every other
+    # instance tracks the Network Application version.
+    if instance == "uos":
+        return get_unifi_os_server_version(instance, url)
+    return get_unifi_network_version(instance, url)
 
 
 def get_unifi_os_server_version(instance, url):

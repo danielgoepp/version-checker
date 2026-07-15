@@ -1,4 +1,3 @@
-import json
 from .base import KubernetesChecker
 from .utils import parse_json_version
 
@@ -28,10 +27,6 @@ class TelegrafChecker(KubernetesChecker):
             return self.get_version_from_command_output(output, r"Telegraf\s+(\d+\.\d+\.\d+)")
 
 
-class ImageVersionChecker(KubernetesChecker):
-    pass
-
-
 class PodAPIChecker(KubernetesChecker):
     def get_version_from_pod_api(self, pod_pattern, api_command, version_field='version'):
         pod_name = self.find_pod(pod_pattern)
@@ -55,27 +50,27 @@ def get_telegraf_version(instance, context=None, namespace=None):
 
 
 def get_calico_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "calico-system", context=context)
+    checker = KubernetesChecker(instance, namespace=namespace or "calico-system", context=context)
     return checker.get_running_image_version("calico/node")
 
 
 def get_metallb_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "metallb-system", context=context)
+    checker = KubernetesChecker(instance, namespace=namespace or "metallb-system", context=context)
     return checker.get_running_image_version("metallb/controller")
 
 
 def get_alertmanager_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "alertmanager", context=context)
+    checker = KubernetesChecker(instance, namespace=namespace or "alertmanager", context=context)
     return checker.get_running_image_version("prometheus/alertmanager")
 
 
 def get_fluentbit_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "fluent-bit", context=context)
+    checker = KubernetesChecker(instance, namespace=namespace or "fluent-bit", context=context)
     return checker.get_running_image_version("fluent-bit")
 
 
 def get_pgadmin_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "pgadmin", context=context)
+    checker = KubernetesChecker(instance, namespace=namespace or "pgadmin", context=context)
     return checker.get_running_image_version("pgadmin4")
 
 
@@ -106,7 +101,7 @@ def get_mongodb_version(instance, context=None, namespace=None):
     checker = KubernetesChecker(instance, namespace=ns, context=context)
 
     if instance == "operator":
-        image_checker = ImageVersionChecker(instance, namespace=ns, context=context)
+        image_checker = KubernetesChecker(instance, namespace=ns, context=context)
         pod_name = image_checker.find_pod("mongodb-kubernetes-operator")
         if pod_name:
             description = image_checker.describe_resource("pod", pod_name)
@@ -127,7 +122,7 @@ def get_victoriametrics_version(instance, context=None, namespace=None):
     checker = KubernetesChecker(instance, namespace=ns, context=context)
 
     if instance == "operator":
-        image_checker = ImageVersionChecker(instance, namespace=ns, context=context)
+        image_checker = KubernetesChecker(instance, namespace=ns, context=context)
         pod_name = image_checker.find_pod("vmoperator")
         if pod_name:
             description = image_checker.describe_resource("pod", pod_name)
@@ -176,24 +171,19 @@ def get_certmanager_version(instance, context=None, namespace=None):
         if version_match:
             return version_match.group(1)
 
-        image_checker = ImageVersionChecker(instance, namespace=ns, context=context)
+        image_checker = KubernetesChecker(instance, namespace=ns, context=context)
         return image_checker.get_image_version_from_description(description, "cert-manager-controller")
 
     return None
 
 
 def get_postfix_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "postfix", context=context)
+    checker = KubernetesChecker(instance, namespace=namespace or "postfix", context=context)
     return checker.get_running_image_version("boky/postfix", r"(\d+\.\d+\.\d+)")
 
 
-def get_uptime_kuma_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "uptime-kuma", context=context)
-    return checker.get_running_image_version("louislam/uptime-kuma")
-
-
 def get_garage_version(instance, context=None, namespace=None):
-    checker = ImageVersionChecker(instance, namespace=namespace or "garage", context=context)
+    checker = KubernetesChecker(instance, namespace=namespace or "garage", context=context)
     return checker.get_running_image_version("dxflrs/garage")
 
 

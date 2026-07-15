@@ -1,5 +1,5 @@
 import config
-from .base import APIChecker
+
 from .utils import print_error, http_get
 
 

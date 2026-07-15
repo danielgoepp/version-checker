@@ -1,6 +1,8 @@
 import traceback
 from contextlib import redirect_stdout
 
+from version_manager import format_version
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
@@ -385,8 +387,8 @@ class VersionCheckerApp(App):
                 mark,
                 fm.get("name", ""),
                 fm.get("instance", ""),
-                fm.get("current_version") or "",
-                fm.get("latest_version") or "",
+                format_version(fm.get("current_version"), fm.get("current_library_version"), empty=""),
+                format_version(fm.get("latest_version"), fm.get("latest_library_version"), empty=""),
                 f"{icon} {status}".strip(),
                 key=str(idx),
             )
@@ -512,12 +514,10 @@ class VersionCheckerApp(App):
         )
 
     def _do_upgrade(self, idxs: list[int], force: bool = False) -> None:
-        for idx in idxs:
-            fm = self.vm.notes[idx]["frontmatter"]
-            name = fm.get("name", "")
-            instance = fm.get("instance", "")
-            print(f"--- Upgrading {name} ({instance}){' [force]' if force else ''} ---")
-            self.vm.upgrade_application(name, instance=instance, force=force)
+        # One upgrade_rows call for the whole selection so run-scoped dedup
+        # (vault's shared workflow, ESPHome base-pattern jobs) sees every row.
+        print(f"--- {'Force-upgrading' if force else 'Upgrading'} {len(idxs)} application(s) ---")
+        self.vm.upgrade_rows(idxs, force=force)
         print()
         print("--- Rechecking upgraded application(s) (may still show the old version if the upgrade job hasn't finished rolling out) ---")
         for idx in idxs:

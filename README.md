@@ -14,7 +14,7 @@ A comprehensive Python-based system for tracking software versions across your i
 - **Visual Status Indicators**: Emoji icons for quick status recognition (✅⚠️📋❓)
 - **Automated Tracking**: Tracks current vs latest versions with timestamps
 - **Performance Optimizations**:
-  - API caching for GitHub and Docker Hub requests (~383,000x speedup on repeated calls)
+  - API caching for GitHub and Docker Hub requests, scoped per check-all run (dedupes multi-instance lookups without going stale in long-lived sessions)
   - Efficient kubectl JSON parsing instead of shell pipes
 - **Security Hardening**: No shell=True in subprocess calls - all commands use list-based construction
 - **Selective Checking**: Enable/disable field to skip applications without removing the row
@@ -181,7 +181,7 @@ Applications that run across multiple environments are tracked separately by ins
 
 - **`version_manager.py`** - Core Python class handling all version checking logic
 - **`check_versions.py`** - Command-line interface with multi-instance support
-- **`requirements.txt`** - Python dependencies (requests, paho-mqtt, PyYAML, textual)
+- **`requirements.txt`** - Python dependencies (requests, paho-mqtt, PyYAML, websockets, textual, aioesphomeapi, argcomplete, uptime-kuma-api)
 - **`config.py`** - Configuration and credentials (not committed to git)
 - **`src/db.py`** - SQLite schema and connection helper
 - **`src/tui/`** - Interactive terminal UI (Textual app), launched via `--tui`

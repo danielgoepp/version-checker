@@ -17,10 +17,6 @@ def print_error(instance, message):
     print(f"  {instance}: {message}")
 
 
-def print_version(instance, version):
-    pass
-
-
 def handle_timeout_error(instance, operation="operation"):
     print_error(instance, f"Timeout during {operation}")
     return None

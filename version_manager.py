@@ -4,7 +4,6 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import io
 import json
-import re
 import sys
 import threading
 import urllib3
@@ -58,36 +57,27 @@ from src.checkers.graylog import (
 from src.checkers.grafana import get_grafana_version
 from src.checkers.mongodb import get_mongodb_latest_version
 from src.checkers.unifi_network import (
-    get_unifi_network_version,
+    get_ui_network_version,
     get_unifi_network_latest_version,
-    get_unifi_os_server_version,
     get_unifi_os_server_latest_version,
 )
-from src.checkers.samba import get_samba_version, get_latest_samba_version
 from src.checkers.syncthing import check_syncthing_current_version
 from src.checkers.awx import check_awx_current_version
 from src.checkers.graylog_compat import get_opensearch_compatible_version
-from src.checkers.postfix import get_postfix_latest_version_from_dockerhub
 from src.checkers.dockerhub import (
     get_dockerhub_latest_version,
     get_dockerhub_latest_beta,
+    clear_cache as dockerhub_clear_cache,
 )
-from src.checkers.n8n import get_n8n_version_api, get_n8n_version_kubectl
+from src.checkers.n8n import get_n8n_version_kubectl
 from src.checkers.openclaw import get_openclaw_version
-from src.checkers.wyoming import (
-    get_wyoming_openwakeword_version,
-    get_wyoming_piper_version,
-    get_wyoming_whisper_version,
-    get_wyoming_satellite_version,
-)
+from src.checkers.wyoming import get_rhasspy_version, get_wyoming_satellite_version
 from src.checkers.ollama import get_ollama_version
 from src.checkers.docker import get_docker_version
 from src.checkers.portainer import get_portainer_version
 from src.checkers.open_webui import get_open_webui_version
-from src.checkers.vault import get_vault_version as get_vault_kubectl_version, get_vault_k8s_version
-from src.checkers.uptime_kuma import (
-    get_uptime_kuma_version as get_uptime_kuma_api_version,
-)
+from src.checkers.vault import get_vault_version
+from src.checkers.uptime_kuma import get_uptime_kuma_version
 from src.checkers.upgrade import trigger_awx_upgrade, trigger_awx_apt_upgrade, trigger_awx_llm_upgrade, trigger_awx_esphome_upgrade, trigger_awx_calico_upgrade, trigger_awx_uos_upgrade, trigger_vault_upgrade_workflow, update_manifest_version, update_helm_values_version, git_commit_push_manifest, kubectl_apply_manifest, AWX_UPGRADE_METHODS, MANIFEST_UPGRADE_METHODS, HELM_UPGRADE_METHODS, CR_UPGRADE_METHODS
 import config
 
@@ -148,6 +138,99 @@ def _frontmatter_value_to_db(col: str, value):
     if col in _JSON_COLUMNS:
         return json.dumps(value) if value else None
     return value
+
+
+def format_version(version, library_version=None, empty="N/A"):
+    """Version string for display, with the ESPHome library version appended
+    when the app tracks one — otherwise a bare `2026.6.5 -> 2026.6.5` line can
+    show "Update Available" with no visible difference."""
+    display = version if version else empty
+    return f"{display} (lib {library_version})" if library_version else display
+
+
+def _kubectl_checker(func):
+    """Adapt f(instance, context=, namespace=) to an app_data dict."""
+    return lambda a: func(a["Instance"], context=a["Context"] or None, namespace=a["Namespace"] or None)
+
+
+def _api_checker(func):
+    """Adapt f(instance, url) to an app_data dict."""
+    return lambda a: func(a["Instance"], a["Target"])
+
+
+def _esphome_checker(a):
+    return get_ble_proxy_version(a["Instance"], a["Target"], a["Esphome_Key"])
+
+
+def _tailscale_checker(a):
+    print("  Checking all Tailscale devices...")
+    results = check_tailscale_versions(
+        api_key=config.TAILSCALE_ACCESS_TOKEN, tailnet=config.TAILSCALE_TAILNET
+    )
+    if not results or results["total_devices"] == 0:
+        return None
+    return {
+        "current_version": f"{results['devices_needing_updates']} need updates",
+        "latest_version": f"{results['devices_up_to_date']} up-to-date",
+    }
+
+
+# Current-version dispatch: one entry per application name; each checker takes
+# the PascalCase app_data dict and returns a version string, a dict (normalized
+# in get_current_version), or None. ssh/ssh_apt rows are dispatched by method
+# instead — their names describe host classes (rpi, ubuntu, ...), not one app.
+CURRENT_CHECKERS = {
+    # HTTP/API
+    "homeassistant": _api_checker(get_home_assistant_version),
+    "esphome": lambda a: get_esphome_version(a["Target"]),
+    "ble-proxy": _esphome_checker,
+    "co2": _esphome_checker,
+    "m5-echo": _esphome_checker,
+    "esp-heat-control": _esphome_checker,
+    "konnected": lambda a: get_konnected_current_version(a["Instance"], a["Target"], a["Esphome_Key"]),
+    "airgradient": lambda a: get_airgradient_current_version(a["Instance"], a["Target"], a["Esphome_Key"]),
+    "traefik": _api_checker(get_traefik_version),
+    "opnsense": _api_checker(get_opnsense_version),
+    "proxmox": _api_checker(get_proxmox_version),
+    "tailscale": _tailscale_checker,
+    "graylog": _api_checker(get_graylog_current_version),
+    "ui-network": _api_checker(get_ui_network_version),
+    "awx": _api_checker(check_awx_current_version),
+    "syncthing": _api_checker(check_syncthing_current_version),
+    "ollama": _api_checker(get_ollama_version),
+    "portainer": _api_checker(get_portainer_version),
+    "openwebui": _api_checker(get_open_webui_version),
+    "uptime-kuma": _api_checker(get_uptime_kuma_version),
+    "music-assistant": _api_checker(get_music_assistant_version),
+    # kubectl
+    "telegraf": _kubectl_checker(get_telegraf_version),
+    "victoriametrics": _kubectl_checker(get_victoriametrics_version),
+    "mosquitto": _kubectl_checker(get_mosquitto_version),
+    "calico": _kubectl_checker(get_calico_version),
+    "metallb": _kubectl_checker(get_metallb_version),
+    "alertmanager": _kubectl_checker(get_alertmanager_version),
+    "fluent-bit": _kubectl_checker(get_fluentbit_version),
+    "mongodb": _kubectl_checker(get_mongodb_version),
+    "opensearch": _kubectl_checker(get_opensearch_version),
+    "cnpg": _kubectl_checker(get_cnpg_version),
+    "pgadmin": _kubectl_checker(get_pgadmin_version),
+    "grafana": _kubectl_checker(get_grafana_version),
+    "unpoller": _kubectl_checker(get_unpoller_version),
+    "cert-manager": _kubectl_checker(get_certmanager_version),
+    "postfix": _kubectl_checker(get_postfix_version),
+    "garage": _kubectl_checker(get_garage_version),
+    "n8n": _kubectl_checker(get_n8n_version_kubectl),
+    "openclaw": _kubectl_checker(get_openclaw_version),
+    "vault": _kubectl_checker(get_vault_version),
+    "k3s": lambda a: get_k3s_current_version(a["Instance"], context=a["Context"] or None),
+    "rhasspy": _api_checker(get_rhasspy_version),
+    # MQTT
+    "zigbee2mqtt": lambda a: get_zigbee2mqtt_version(a["Instance"]),
+    # local commands / SSH
+    "kopia": _api_checker(get_kopia_version),
+    "docker": _api_checker(get_docker_version),
+    "wyoming-satellite": _api_checker(get_wyoming_satellite_version),
+}
 
 
 class VersionManager:
@@ -305,8 +388,6 @@ class VersionManager:
                 return get_graylog_latest_version_from_repo(dockerhub_repo)
             elif "postgres" in dockerhub_repo.lower():
                 return get_postgresql_latest_version_from_ghcr(dockerhub_repo)
-            elif "postfix" in dockerhub_repo.lower():
-                return get_postfix_latest_version_from_dockerhub(dockerhub_repo)
             else:
                 return get_dockerhub_latest_version(dockerhub_repo)
         else:
@@ -366,169 +447,27 @@ class VersionManager:
 
     def get_current_version(self, app_data):
         app_name = app_data.get("Name", "")
-        instance = app_data.get("Instance", "prod")
-        check_current = app_data.get("Check_Current", "")
-        check_latest = app_data.get("Check_Latest", "")
-        url = app_data.get("Target", "")
-        github_repo = app_data.get("GitHub", "")
-        context = app_data.get("Context", "") or None
-        namespace = app_data.get("Namespace", "") or None
+
+        checker = CURRENT_CHECKERS.get(app_name)
+        if checker is not None:
+            result = checker(app_data)
+        elif app_data.get("Check_Current") == "ssh" and app_data.get("Check_Latest") == "ssh_apt":
+            result = check_server_status(app_data.get("Instance", ""), app_data.get("Target", ""))
+        else:
+            result = None
 
         current_version = None
         latest_version = None
         firmware_update_available = False
         library_current_version = None
 
-        if check_current == "api":
-            if app_name == "homeassistant":
-                if url:
-                    current_version = get_home_assistant_version(instance, url)
-            elif app_name == "esphome":
-                if url:
-                    current_version = get_esphome_version(url)
-            elif app_name in ("ble-proxy", "co2", "m5-echo", "esp-heat-control"):
-                encryption_key = app_data.get("Esphome_Key", "")
-                current_version = get_ble_proxy_version(instance, url, encryption_key)
-            elif app_name == "konnected":
-                encryption_key = app_data.get("Esphome_Key", "")
-                result = get_konnected_current_version(instance, url, encryption_key)
-                if isinstance(result, dict):
-                    current_version = result.get("esphome_version")
-                    library_current_version = result.get("library_version")
-            elif app_name == "airgradient":
-                encryption_key = app_data.get("Esphome_Key", "")
-                result = get_airgradient_current_version(instance, url, encryption_key)
-                if isinstance(result, dict):
-                    current_version = result.get("esphome_version")
-                    library_current_version = result.get("library_version")
-            elif app_name == "traefik":
-                current_version = get_traefik_version(instance, url)
-            elif app_name == "opnsense":
-                result = get_opnsense_version(instance, url)
-                if isinstance(result, dict):
-                    current_version = result.get("current_version")
-                    firmware_update_available = result.get(
-                        "firmware_update_available", False
-                    )
-                    if result.get("full_version"):
-                        latest_version = result["full_version"]
-            elif app_name == "proxmox":
-                if url:
-                    current_version = get_proxmox_version(instance, url)
-            elif app_name == "tailscale":
-                print("  Checking all Tailscale devices...")
-                device_results = check_tailscale_versions(
-                    api_key=config.TAILSCALE_ACCESS_TOKEN, tailnet=config.TAILSCALE_TAILNET
-                )
-                if device_results and device_results["total_devices"] > 0:
-                    devices_needing_updates = device_results["devices_needing_updates"]
-                    devices_up_to_date = device_results["devices_up_to_date"]
-                    current_version = f"{devices_needing_updates} need updates"
-                    latest_version = f"{devices_up_to_date} up-to-date"
-            elif app_name == "graylog":
-                if url:
-                    current_version = get_graylog_current_version(instance, url)
-            elif app_name == "ui-network":
-                if instance == "uos":
-                    current_version = get_unifi_os_server_version(instance, url)
-                elif url:
-                    current_version = get_unifi_network_version(instance, url)
-            elif app_name == "awx":
-                if url:
-                    current_version = check_awx_current_version(instance, url)
-            elif app_name == "syncthing":
-                if url:
-                    current_version = check_syncthing_current_version(instance, url)
-            elif app_name == "n8n":
-                if url:
-                    current_version = get_n8n_version_api(instance, url)
-            elif app_name == "ollama":
-                if url:
-                    current_version = get_ollama_version(instance, url)
-            elif app_name == "portainer":
-                if url:
-                    current_version = get_portainer_version(instance, url)
-            elif app_name == "openwebui":
-                if url:
-                    current_version = get_open_webui_version(instance, url)
-            elif app_name == "uptime-kuma":
-                current_version = get_uptime_kuma_api_version(instance, url)
-            elif app_name == "music-assistant":
-                if url:
-                    current_version = get_music_assistant_version(instance, url)
-
-        elif check_current == "ssh":
-            if check_latest == "ssh_apt":
-                kernel_result = check_server_status(instance, url)
-                if isinstance(kernel_result, dict):
-                    current_version = kernel_result.get("current_version")
-                    latest_version = kernel_result.get("latest_version")
-        elif check_current == "kubectl":
-            if app_name == "telegraf":
-                current_version = get_telegraf_version(instance, context=context, namespace=namespace)
-            elif app_name == "victoriametrics":
-                current_version = get_victoriametrics_version(instance, context=context, namespace=namespace)
-            elif app_name == "mosquitto":
-                current_version = get_mosquitto_version(instance, context=context, namespace=namespace)
-            elif app_name == "calico":
-                current_version = get_calico_version(instance, context=context, namespace=namespace)
-            elif app_name == "metallb":
-                current_version = get_metallb_version(instance, context=context, namespace=namespace)
-            elif app_name == "alertmanager":
-                current_version = get_alertmanager_version(instance, context=context, namespace=namespace)
-            elif app_name == "fluent-bit":
-                current_version = get_fluentbit_version(instance, context=context, namespace=namespace)
-            elif app_name == "mongodb":
-                current_version = get_mongodb_version(instance, context=context, namespace=namespace)
-            elif app_name == "opensearch":
-                current_version = get_opensearch_version(instance, context=context, namespace=namespace)
-            elif app_name == "cnpg":
-                current_version = get_cnpg_version(instance, context=context, namespace=namespace)
-            elif app_name == "pgadmin":
-                current_version = get_pgadmin_version(instance, context=context, namespace=namespace)
-            elif app_name == "grafana":
-                current_version = get_grafana_version(instance, context=context, namespace=namespace)
-            elif app_name == "unpoller":
-                current_version = get_unpoller_version(instance, context=context, namespace=namespace)
-            elif app_name == "cert-manager":
-                current_version = get_certmanager_version(instance, context=context, namespace=namespace)
-            elif app_name == "k3s":
-                current_version = get_k3s_current_version(instance, context=context)
-            elif app_name == "postfix":
-                current_version = get_postfix_version(instance, context=context, namespace=namespace)
-            elif app_name == "garage":
-                current_version = get_garage_version(instance, context=context, namespace=namespace)
-            elif app_name == "n8n":
-                current_version = get_n8n_version_kubectl(instance, context=context, namespace=namespace)
-            elif app_name == "openclaw":
-                current_version = get_openclaw_version(instance, context=context, namespace=namespace)
-            elif app_name == "vault":
-                if instance == "k8s":
-                    current_version = get_vault_k8s_version(instance, context=context, namespace=namespace)
-                else:
-                    current_version = get_vault_kubectl_version(instance, context=context, namespace=namespace)
-            elif app_name == "rhasspy" and instance == "wyoming-openwakeword":
-                current_version = get_wyoming_openwakeword_version(instance, url)
-            elif app_name == "rhasspy" and instance == "wyoming-piper":
-                current_version = get_wyoming_piper_version(instance, url)
-            elif app_name == "rhasspy" and instance == "wyoming-whisper":
-                current_version = get_wyoming_whisper_version(instance, url)
-
-        elif check_current == "mqtt":
-            if app_name == "zigbee2mqtt":
-                current_version = get_zigbee2mqtt_version(instance)
-
-        elif check_current == "command":
-            if app_name == "kopia":
-                current_version = get_kopia_version(instance, url)
-            elif app_name == "samba":
-                current_version = get_samba_version(instance, url)
-                if check_latest == "ssh_apt":
-                    latest_version = get_latest_samba_version(instance)
-            elif app_name == "docker":
-                current_version = get_docker_version(instance, url)
-            elif app_name == "wyoming-satellite":
-                current_version = get_wyoming_satellite_version(instance, url)
+        if isinstance(result, dict):
+            current_version = result.get("current_version") or result.get("esphome_version")
+            latest_version = result.get("full_version") or result.get("latest_version")
+            firmware_update_available = result.get("firmware_update_available", False)
+            library_current_version = result.get("library_version")
+        else:
+            current_version = result
 
         return current_version, latest_version, firmware_update_available, library_current_version
 
@@ -545,21 +484,13 @@ class VersionManager:
         if verbose:
             print(f"Checking {app_name} ({instance})...")
 
-        if check_latest == "proxmox":
-            current_version, ssh_latest_version, firmware_update_available, library_current_version = (
-                self.get_current_version(app_data)
-            )
-            latest_version = get_proxmox_latest_version(
-                include_ceph=True, current_version=current_version
-            )
-        else:
-            version_pin = app_data.get("Version_Pin", "")
-            latest_version = self.get_latest_version(
-                app_name, check_latest, github_repo, dockerhub_repo, version_pin
-            )
-            current_version, ssh_latest_version, firmware_update_available, library_current_version = (
-                self.get_current_version(app_data)
-            )
+        version_pin = app_data.get("Version_Pin", "")
+        latest_version = self.get_latest_version(
+            app_name, check_latest, github_repo, dockerhub_repo, version_pin
+        )
+        current_version, ssh_latest_version, firmware_update_available, library_current_version = (
+            self.get_current_version(app_data)
+        )
 
         if ssh_latest_version:
             latest_version = ssh_latest_version
@@ -582,6 +513,9 @@ class VersionManager:
 
         if firmware_update_available:
             updates["Notes"] = "Firmware update available"
+        elif app_data.get("Notes", "") == "Firmware update available":
+            # Only clear the note this code itself wrote, never free-text notes.
+            updates["Notes"] = ""
 
         status = "Unknown"
         if current_version and latest_version:
@@ -635,6 +569,8 @@ class VersionManager:
             print(f"  Status: {icon} {status}")
             print()
         else:
+            current_display = format_version(current_version, library_current_version)
+            latest_display = format_version(latest_version, library_latest_version)
             print(f"{icon} {app_name} ({instance}): {current_display} -> {latest_display} ({status})")
 
         return f"{app_name} ({instance})" if not current_version else None
@@ -648,6 +584,14 @@ class VersionManager:
         """
         print("Starting version check for all applications...")
         print("=" * 50)
+
+        # The GitHub/Docker Hub lookups are lru_cached to dedupe multi-instance
+        # apps within one run; clear them here so the cache scopes to the run,
+        # not the process — otherwise a long-lived TUI session keeps serving
+        # the latest-version results from its first check-all forever.
+        get_github_latest_version.cache_clear()
+        get_github_latest_tag.cache_clear()
+        dockerhub_clear_cache()
 
         enabled_indices = []
         skipped = 0
@@ -766,8 +710,8 @@ class VersionManager:
                 continue
             name = fm.get("name", "")
             instance = fm.get("instance", "")
-            current = fm.get("current_version", "N/A") or "N/A"
-            latest = fm.get("latest_version", "N/A") or "N/A"
+            current = format_version(fm.get("current_version"), fm.get("current_library_version"))
+            latest = format_version(fm.get("latest_version"), fm.get("latest_library_version"))
             app_display = f"{name}-{instance}" if instance != "prod" else name
             print(f"  {app_display}: {current} -> {latest}")
 
@@ -789,8 +733,8 @@ class VersionManager:
 
             name = str(fm.get("name", ""))
             instance = str(fm.get("instance", ""))
-            current = str(fm.get("current_version", "") or "")
-            latest = str(fm.get("latest_version", "") or "")
+            current = format_version(fm.get("current_version"), fm.get("current_library_version"), empty="")
+            latest = format_version(fm.get("latest_version"), fm.get("latest_library_version"), empty="")
             status = str(fm.get("status", "") or "")
 
             max_widths["name"] = max(max_widths["name"], len(name))
@@ -836,8 +780,8 @@ class VersionManager:
 
             name = str(fm.get("name", ""))
             instance = str(fm.get("instance", ""))
-            current = str(fm.get("current_version", "") or "")
-            latest = str(fm.get("latest_version", "") or "")
+            current = format_version(fm.get("current_version"), fm.get("current_library_version"), empty="")
+            latest = format_version(fm.get("latest_version"), fm.get("latest_library_version"), empty="")
 
             max_widths["name"] = max(max_widths["name"], len(name))
             max_widths["instance"] = max(max_widths["instance"], len(instance))
@@ -918,19 +862,52 @@ class VersionManager:
             print(f"Application '{app_name}' not found")
             return
 
+        self.upgrade_rows(matching, dry_run=dry_run, force=force)
+
+    def _record_upgrade(self, idx: int, upgrade_method: str, dry_run: bool, detail: str = "") -> None:
+        if dry_run:
+            return
+        app_data = self.get_row_data(idx)
+        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+        self.log_transaction(
+            idx,
+            upgrade_method,
+            app_data.get("Current_Version", "") or "",
+            app_data.get("Latest_Version", "") or "",
+            detail=detail,
+        )
+
+    def upgrade_rows(self, indices: list[int], dry_run: bool = False, force: bool = False):
+        """Upgrade a set of rows as one run.
+
+        Run-scoped state lives here so cross-instance dedup works no matter how
+        the rows were selected (CLI name lookup or TUI multi-select): vault's
+        shared workflow fires once *after* every instance's values update has
+        been pushed, and an ansible-esphome app whose every enabled instance is
+        in the run gets a single base-pattern AWX job instead of one per device.
+        """
         launched = 0
         manifests_updated = 0
         skipped = 0
-        instance_filter = instance
-        vault_workflow_launched = False
+        # Vault instances (server + vault-k8s injector) share one Helm release
+        # and values file — collect them and fire the workflow once at the end,
+        # after all their values updates have been committed.
+        vault_pending: list[int] = []
+        esphome_fired: set[str] = set()
 
-        for idx in matching:
+        for idx in indices:
             app_data = self.get_row_data(idx)
+            app_name = app_data.get("Name", "")
             instance = app_data.get("Instance", "prod")
             version_pin = app_data.get("Version_Pin", "") or ""
             upgrade_method = app_data.get("Upgrade", "") or ""
             status = app_data.get("Status", "") or ""
             label = f"{app_name} ({instance})"
+
+            if self.notes[idx]["frontmatter"].get("enabled", True) is not True:
+                print(f"  Skipping {label}: disabled")
+                skipped += 1
+                continue
 
             if not force and status == "Up to Date":
                 print(f"  Skipping {label}: already up to date")
@@ -945,49 +922,42 @@ class VersionManager:
                     skipped += 1
                     continue
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                success = trigger_awx_apt_upgrade(instance, instance, dry_run=dry_run)
-                if success:
+                if trigger_awx_apt_upgrade(instance, instance, dry_run=dry_run):
                     launched += 1
-                    if not dry_run:
-                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                        self.log_transaction(idx, "ansible-apt", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                    self._record_upgrade(idx, "ansible-apt", dry_run)
                 else:
                     skipped += 1
                 continue
 
             if upgrade_method == "ansible-llm":
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                success = trigger_awx_llm_upgrade(app_name, instance, dry_run=dry_run)
-                if success:
+                if trigger_awx_llm_upgrade(app_name, instance, dry_run=dry_run):
                     launched += 1
-                    if not dry_run:
-                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                        self.log_transaction(idx, "ansible-llm", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                    self._record_upgrade(idx, "ansible-llm", dry_run)
                 else:
                     skipped += 1
                 continue
 
             if upgrade_method == "ansible-esphome":
-                if launched > 0:
+                if app_name in esphome_fired:
                     print(f"  Skipping {label}: ESPHome AWX job already launched for all instances")
-                    if not dry_run:
-                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                        self.log_transaction(idx, "ansible-esphome", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "", detail="covered by shared ESPHome AWX job")
+                    self._record_upgrade(idx, "ansible-esphome", dry_run, detail="covered by shared ESPHome AWX job")
                     skipped += 1
                     continue
                 esphome_target_map = {"konnected": "garage-door-opener", "esp-heat-control": "heat-control"}
-                esphome_target = esphome_target_map.get(app_name, app_name)
-                if instance_filter:
-                    esphome_target = f"{esphome_target}-{instance}"
-                    print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                else:
+                base_target = esphome_target_map.get(app_name, app_name)
+                covers_all = set(self.find_application_rows_by_name(app_name)) <= set(indices)
+                if covers_all:
+                    esphome_target = base_target
                     print(f"  Upgrading all {app_name} devices via AWX (method: {upgrade_method})...")
-                success = trigger_awx_esphome_upgrade(esphome_target, instance, dry_run=dry_run)
-                if success:
+                else:
+                    esphome_target = f"{base_target}-{instance}"
+                    print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
+                if trigger_awx_esphome_upgrade(esphome_target, instance, dry_run=dry_run):
                     launched += 1
-                    if not dry_run:
-                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                        self.log_transaction(idx, "ansible-esphome", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                    self._record_upgrade(idx, "ansible-esphome", dry_run)
+                    if covers_all:
+                        esphome_fired.add(app_name)
                 else:
                     skipped += 1
                 continue
@@ -1000,24 +970,18 @@ class VersionManager:
                     continue
                 target_version = latest_version if latest_version.startswith("v") else f"v{latest_version}"
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                success = trigger_awx_calico_upgrade(target_version, instance, dry_run=dry_run)
-                if success:
+                if trigger_awx_calico_upgrade(target_version, instance, dry_run=dry_run):
                     launched += 1
-                    if not dry_run:
-                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                        self.log_transaction(idx, "ansible-calico", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                    self._record_upgrade(idx, "ansible-calico", dry_run)
                 else:
                     skipped += 1
                 continue
 
             if upgrade_method == "ansible-uos":
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                success = trigger_awx_uos_upgrade(instance, dry_run=dry_run)
-                if success:
+                if trigger_awx_uos_upgrade(instance, dry_run=dry_run):
                     launched += 1
-                    if not dry_run:
-                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                        self.log_transaction(idx, "ansible-uos", app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                    self._record_upgrade(idx, "ansible-uos", dry_run)
                 else:
                     skipped += 1
                 continue
@@ -1028,13 +992,9 @@ class VersionManager:
                     skipped += 1
                     continue
                 print(f"  Upgrading {label} via AWX (method: {upgrade_method})...")
-                awx_key = f"{app_name}-{instance}"
-                success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
-                if success:
+                if trigger_awx_upgrade(f"{app_name}-{instance}", instance, dry_run=dry_run):
                     launched += 1
-                    if not dry_run:
-                        self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                        self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                    self._record_upgrade(idx, upgrade_method, dry_run)
                 else:
                     skipped += 1
                 continue
@@ -1080,12 +1040,9 @@ class VersionManager:
                         print(f"  Skipping manifest update for {label} (--force)")
 
                     print(f"  Applying manifest for {label}...")
-                    apply_ok = kubectl_apply_manifest(manifest_rel, context, namespace, instance, dry_run=dry_run)
-                    if apply_ok:
+                    if kubectl_apply_manifest(manifest_rel, context, namespace, instance, dry_run=dry_run):
                         launched += 1
-                        if not dry_run:
-                            self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                            self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                        self._record_upgrade(idx, upgrade_method, dry_run)
                     else:
                         skipped += 1
                     continue
@@ -1147,36 +1104,30 @@ class VersionManager:
 
                 if upgrade_method in AWX_UPGRADE_METHODS:
                     if app_name == "vault":
-                        # Both vault instances (server + vault-k8s injector) are the
-                        # same Helm release sharing one values file, so the workflow
-                        # only needs to fire once per upgrade run.
-                        if vault_workflow_launched:
-                            print(f"  Skipping {label}: vault upgrade workflow already launched")
-                            if not dry_run:
-                                self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                                self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "", detail="covered by shared vault upgrade workflow")
-                            skipped += 1
-                            continue
-                        print(f"  Triggering AWX vault upgrade workflow for {label}...")
-                        success = trigger_vault_upgrade_workflow(instance, dry_run=dry_run)
-                        if success:
-                            vault_workflow_launched = True
-                    else:
-                        print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
-                        awx_key = f"{app_name}-{instance}"
-                        success = trigger_awx_upgrade(awx_key, instance, dry_run=dry_run)
-
-                    if success:
+                        print(f"  Deferring shared AWX vault upgrade workflow for {label}...")
+                        vault_pending.append(idx)
+                        continue
+                    print(f"  Triggering AWX upgrade for {label} (method: {upgrade_method})...")
+                    if trigger_awx_upgrade(f"{app_name}-{instance}", instance, dry_run=dry_run):
                         launched += 1
-                        if not dry_run:
-                            self.update_row_data(idx, {"Last_Upgraded": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                            self.log_transaction(idx, upgrade_method, app_data.get("Current_Version", "") or "", app_data.get("Latest_Version", "") or "")
+                        self._record_upgrade(idx, upgrade_method, dry_run)
                     else:
                         skipped += 1
                 continue
 
             print(f"  Skipping {label}: version_pin '{version_pin}' not handled by --upgrade")
             skipped += 1
+
+        if vault_pending:
+            first_instance = self.get_row_data(vault_pending[0]).get("Instance", "prod")
+            print(f"  Triggering AWX vault upgrade workflow (covers {len(vault_pending)} instance(s))...")
+            if trigger_vault_upgrade_workflow(first_instance, dry_run=dry_run):
+                launched += 1
+                for i, pidx in enumerate(vault_pending):
+                    detail = "" if i == 0 else "covered by shared vault upgrade workflow"
+                    self._record_upgrade(pidx, "ansible-helm", dry_run, detail=detail)
+            else:
+                skipped += len(vault_pending)
 
         print()
         if dry_run:

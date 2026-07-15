@@ -1,17 +1,4 @@
-from .base import APIChecker, KubernetesChecker
-
-def get_n8n_version_api(instance, url):
-    checker = APIChecker(instance, url)
-
-    version = checker.get_json_api_version("healthz", version_field="version")
-    if version:
-        return version
-
-    version = checker.get_json_api_version("rest/version", version_field="version")
-    if version:
-        return version
-
-    return checker.get_json_api_version("health", version_field="version")
+from .base import KubernetesChecker
 
 def get_n8n_version_kubectl(instance, context=None, namespace=None):
     checker = KubernetesChecker(instance, namespace=namespace or "n8n", context=context)

@@ -1,17 +1,14 @@
 import requests
-import json
-from .utils import http_get, print_error, handle_generic_error
-from .github import get_github_latest_version
+from .utils import print_error
 
 def get_tailscale_api_devices(api_key, tailnet):
-    import requests as _requests
     url = f"https://api.tailscale.com/api/v2/tailnet/{tailnet}/devices"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     try:
-        response = _requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 401:
             print_error("tailscale", "Access token is invalid or expired (401) — generate a new API access token at https://login.tailscale.com/admin/settings/keys and update TAILSCALE_ACCESS_TOKEN in .env")
             return []

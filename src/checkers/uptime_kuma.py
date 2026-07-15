@@ -1,6 +1,6 @@
 
 
-from .utils import print_version, print_error
+from .utils import print_error
 
 
 def get_uptime_kuma_version(instance, url):
@@ -22,7 +22,6 @@ def get_uptime_kuma_version(instance, url):
 
         version = info.get("version")
         if version:
-            print_version(instance, version)
             return version
 
         print_error(instance, "No version field in Uptime Kuma info response")

@@ -1,7 +1,7 @@
 import subprocess
 import re
 import json
-from .utils import http_get, print_error, print_version, parse_image_version, extract_semantic_version
+from .utils import http_get, print_error, parse_image_version, extract_semantic_version
 
 
 class KubernetesChecker:
@@ -106,7 +106,6 @@ class KubernetesChecker:
 
         version = parse_image_version(result.stdout, image_pattern, version_pattern)
         if version:
-            print_version(self.instance, version)
             return version
 
         print_error(self.instance, f"Could not parse {image_pattern} version from running pods")
@@ -137,7 +136,6 @@ class KubernetesChecker:
             
         version = parse_image_version(description, image_pattern, version_pattern)
         if version:
-            print_version(self.instance, version)
             return version
         else:
             print_error(self.instance, f"Could not parse version from image: {description}")
@@ -149,7 +147,6 @@ class KubernetesChecker:
             
         version = extract_semantic_version(command_output, version_pattern)
         if version:
-            print_version(self.instance, version)
             return version
         else:
             print_error(self.instance, f"Could not parse version from: {command_output}")
@@ -178,7 +175,6 @@ class APIChecker:
             
             if data and isinstance(data, dict) and version_field in data:
                 version = data[version_field]
-                print_version(self.instance, version)
                 return version
             else:
                 print_error(self.instance, f"Could not get {version_field} from API response")
@@ -196,7 +192,6 @@ class APIChecker:
             if response and isinstance(response, str):
                 version = extract_semantic_version(response, version_pattern)
                 if version:
-                    print_version(self.instance, version)
                     return version
                 else:
                     print_error(self.instance, "Could not parse version from response")

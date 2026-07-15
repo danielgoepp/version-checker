@@ -1,5 +1,5 @@
 import subprocess
-from .utils import print_error, print_version, handle_timeout_error, handle_generic_error
+from .utils import print_error, handle_timeout_error, handle_generic_error
 
 def get_kopia_version(instance, url):
     if not url or not str(url).startswith(('http://', 'https://')):
@@ -13,7 +13,6 @@ def get_kopia_version(instance, url):
         if result.returncode == 0:
             raw_version = result.stdout.strip()
             clean_version = raw_version.split("build:")[0].strip() if "build:" in raw_version else raw_version
-            print_version(instance, clean_version)
             return clean_version
         else:
             print_error(instance, "Error retrieving version")
