@@ -13,13 +13,15 @@ def is_kernel_only_update(latest_version):
 
 
 def get_latest_linux_kernel_version(current_kernel, target_host):
+    # Failures return None (status becomes "Current Version"), never
+    # "No updates" — an unreachable host must not look up to date.
     if not target_host:
-        return _STATUS_NO_UPDATE
+        return None
     try:
         return _check_apt_upgradable(target_host, current_kernel)
     except Exception as e:
         print(f"  Error checking apt updates: {e}")
-        return _STATUS_NO_UPDATE
+        return None
 
 
 def _check_apt_upgradable(target_host, current_kernel):
@@ -45,7 +47,8 @@ def _check_apt_upgradable(target_host, current_kernel):
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
     if result.returncode != 0:
-        return _STATUS_NO_UPDATE
+        print(f"    apt check on {target_host} failed: {result.stderr.strip()}")
+        return None
 
     parts = result.stdout.split('===KERNEL===\n', 1)
     pkg_lines = [l for l in parts[0].splitlines() if l and not l.startswith('Listing')]

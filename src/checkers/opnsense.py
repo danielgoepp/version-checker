@@ -15,8 +15,11 @@ def get_opnsense_version(instance, url=None):
         print(f"  {instance}: Error getting version info")
         return None
         
-    current_version = info_data.get('product_version', 'Unknown')
-    full_version = info_data.get('product_version_string', current_version)
+    current_version = info_data.get('product_version')
+    if not current_version:
+        print(f"  {instance}: product_version missing from firmware info response")
+        return None
+    full_version = info_data.get('product_version_string') or current_version
     print(f"  {instance}: Current version {current_version} (full: {full_version})")
     
     status_url = f"{url}/api/core/firmware/status"
