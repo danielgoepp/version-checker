@@ -1,7 +1,19 @@
 import subprocess
 import json
+from .base import KubernetesChecker
+
+
+def _get_grafana_mcp_version(instance, context=None, namespace=None):
+    # The mcp instance is a separate deployment/image (grafana/mcp-grafana)
+    # in the same namespace as the core grafana pod, so it reads the
+    # running container image tag instead of the /api/health endpoint.
+    checker = KubernetesChecker(instance, namespace=namespace or "grafana", context=context)
+    return checker.get_running_image_version("grafana/mcp-grafana")
+
 
 def get_grafana_version(instance, url=None, context=None, namespace=None):
+    if instance == "mcp":
+        return _get_grafana_mcp_version(instance, context=context, namespace=namespace)
     try:
         ns = namespace or "grafana"
         def _kubectl_cmd(*args):
@@ -25,7 +37,9 @@ def get_grafana_version(instance, url=None, context=None, namespace=None):
             name = pod.get('metadata', {}).get('name', '')
             status = pod.get('status', {}).get('phase', '')
 
-            if 'grafana' in name and status == 'Running':
+            # Namespace also holds the mcp instance's pods ("grafana-mcp-..."),
+            # which also contain "grafana" - exclude them explicitly.
+            if name.startswith('grafana-') and not name.startswith('grafana-mcp-') and status == 'Running':
                 pod_name = name
                 break
 

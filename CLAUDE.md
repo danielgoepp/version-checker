@@ -87,6 +87,7 @@ Applications can have multiple instances tracked separately (one note per instan
 - **Konnected**: car, workshop
 - **CNPG** (`cnpg`): doholm-prod, grafana-prod, homeassistant-prod (PostgreSQL clusters), operator (CNPG operator itself), plugin-barman-cloud (Barman Cloud plugin)
 - **UniFi Network**: application (Network Application version), uos (UniFi OS Server firmware version)
+- **Grafana**: prod (the Grafana server itself), mcp (the `grafana/mcp-grafana` MCP server deployment in the same namespace — separate image/deployment, current version read from the running container tag rather than the `/api/health` call the `prod` instance uses; see `get_grafana_version()` in `src/checkers/grafana.py`, which branches on `instance == "mcp"` the same way `vault.py` branches on its `k8s` instance)
 - **BLE Proxy**: bedroom, garage, greatroom, studio-a, workshop
 
 ### Check Methods (Split Architecture)
@@ -207,7 +208,7 @@ The system uses two separate fields for version checking:
 - **pgAdmin**: `dpage/pgadmin4:9.16` → `9.16` (Docker Hub tag; `check_latest: docker_hub`, current version also read from the running container image tag)
 - **PostgreSQL**: `PostgreSQL 17.2 (Debian...)` → `17.2` (SQL query parsing)
 - **CloudNativePG**: `ghcr.io/cloudnative-pg/cloudnative-pg:1.25.0` → `1.25.0` (container image tag)
-- **Grafana**: `{"version":"12.0.2",...}` → `12.0.2` (internal health API JSON parsing)
+- **Grafana**: `{"version":"12.0.2",...}` → `12.0.2` (internal health API JSON parsing; the `mcp` instance instead reads `grafana/mcp-grafana:0.17.2` → `0.17.2` from the running container image tag, see Multi-Instance Support above)
 - **Vault**: `hashicorp/vault:1.18.4` / `hashicorp/vault-k8s:1.7.5` → `1.18.4` / `1.7.5` (running container image tag, not an API call — `src/checkers/vault.py`)
 
 ### MQTT Version Discovery
