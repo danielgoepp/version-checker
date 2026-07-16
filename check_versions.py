@@ -126,6 +126,9 @@ def main():
 
     args = parser.parse_args()
 
+    if len(sys.argv) == 1:
+        args.tui = True
+
     from src.log_utils import enable_file_logging, open_log_file
 
     log_file = open_log_file() if args.tui else enable_file_logging()

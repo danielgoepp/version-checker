@@ -85,6 +85,8 @@ pip install -r requirements.txt
 
 ```bash
 ./check_versions.py --tui
+# or, equivalently, with no arguments at all
+./check_versions.py
 ```
 
 Launches a full-screen, keyboard-driven interface (built with [Textual](https://textual.textualize.io/)) for browsing and upgrading applications. It starts in "Updates" mode, listing only applications with an available update.
