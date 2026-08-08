@@ -168,7 +168,25 @@ def _update_version_in_file(
             print(f"  Version '{current_version}' not found in {rel_path}")
         return False
 
-    updated, count = current_re.subn(lambda m: m.group(1) + latest_version, content)
+    count = 0
+
+    def _replace(m):
+        nonlocal count
+        prefix = m.group(1)
+        # A truncated current_version can match as a prefix of a longer,
+        # already-correct suffixed version already in the file (e.g. current
+        # "2026.7.1" detected from a running "2026.7.1-2" pod) — skip so we
+        # don't duplicate the suffix.
+        if content[m.start():m.start() + len(prefix) + len(latest_version)] == prefix + latest_version:
+            return m.group(0)
+        count += 1
+        return prefix + latest_version
+
+    updated = current_re.sub(_replace, content)
+
+    if count == 0:
+        print(f"  {label} already at {latest_version} — no update needed")
+        return False
 
     if dry_run:
         print(f"  [DRY RUN] Would update {rel_path}: {current_version} → {latest_version} ({count} occurrence(s))")
