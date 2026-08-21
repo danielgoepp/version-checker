@@ -652,9 +652,15 @@ class VersionManager:
                             # Nested checker calls (kubectl lookups, apt/proxmox status
                             # lines, etc.) print their own chatter into the buffer ahead
                             # of check_single_application's own final summary line —
-                            # only that last line belongs in condensed output.
+                            # only that last line belongs in condensed output. Exception:
+                            # when the current-version check itself failed (📋/❓), those
+                            # earlier lines are the only record of *why* (e.g. a checker's
+                            # print_error), so surface them instead of discarding them.
                             lines = [l for l in output.splitlines() if l.strip()]
                             summary = lines[-1] if lines else ""
+                            if len(lines) > 1 and ("📋" in summary or "❓" in summary):
+                                for line in lines[:-1]:
+                                    _real_stdout.write(f"[{completed}/{total_apps}]   {line}\n")
                             _real_stdout.write(f"[{completed}/{total_apps}] {summary}\n")
                         if error:
                             app_data = self.get_row_data(idx)
