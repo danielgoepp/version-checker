@@ -30,13 +30,20 @@ def _check_apt_upgradable(target_host, current_kernel):
     # Ubuntu delivers kernel updates as new versioned packages installed via the
     # linux-image-generic metapackage — they never appear in apt list --upgradable.
     # We detect them by comparing the metapackage's Depends to the running kernel.
+    # Every installed linux-image-generic* metapackage is considered (GA and HWE,
+    # e.g. linux-image-generic-hwe-24.04) and the newest kernel they depend on wins —
+    # that's what GRUB boots after a reboot. Checking only linux-image-generic
+    # falsely flags hosts running the HWE kernel line.
     # RPi kernels upgrade in-place and DO appear in apt list --upgradable.
     remote_cmd = (
         'sudo -n apt-get update -q > /dev/null 2>&1; '
         'apt list --upgradable 2>/dev/null; '
         'echo "===KERNEL==="; '
-        'apt-cache show linux-image-generic 2>/dev/null '
-        '| grep "^Depends:" | grep -o \'linux-image-[0-9][^, ]*\' | head -1'
+        'for p in $(dpkg-query -W -f=\'${db:Status-Abbrev} ${Package}\\n\' '
+        '\'linux-image-generic*\' 2>/dev/null | awk \'$1=="ii"{print $2}\'); do '
+        'apt-cache show "$p" 2>/dev/null | grep "^Depends:" '
+        '| grep -o \'linux-image-[0-9][^, ]*\'; '
+        'done | sort -V | tail -1'
     )
 
     cmd = [
@@ -73,8 +80,8 @@ def _has_kernel_update(pkg_lines, kernel_section, current_kernel):
     if current_kernel and current_kernel.endswith('-pve'):
         return False
 
-    # Ubuntu: compare the kernel the metapackage depends on vs the running kernel
-    # kernel_section is e.g. "linux-image-6.8.0-110-generic"
+    # Ubuntu: compare the newest kernel the installed metapackages depend on vs the
+    # running kernel. kernel_section is e.g. "linux-image-6.8.0-110-generic"
     if kernel_section and current_kernel:
         latest_kernel = kernel_section.replace('linux-image-', '')  # "6.8.0-110-generic"
         return latest_kernel != current_kernel

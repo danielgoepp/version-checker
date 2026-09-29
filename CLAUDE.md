@@ -220,7 +220,7 @@ The system uses two separate fields for version checking:
 - **current_version**: Shows "OS Name - Kernel Version" (e.g. "Ubuntu 24.04.3 LTS - 6.8.0-79-generic")
 - **latest_version**: `"No updates"`, or `"N packages"` / `"N packages + kernel"` (e.g. `"14 packages + kernel"`) — never the literal string "Update available". A failed check (SSH error, nonzero exit) returns `None` so the row shows 📌 Current Version instead of a false ✅ — `"No updates"` always means the check genuinely ran clean
 - **Unified Logic**: Single `linux_kernel.py` handles Ubuntu and Raspberry Pi
-- **Package Detection**: RPi kernel updates appear directly in `apt list --upgradable` (`raspberrypi-kernel`/`linux-image-rpi-`); Ubuntu kernel updates don't, so they're detected by comparing what `linux-image-generic`'s `Depends:` points to against the running kernel
+- **Package Detection**: RPi kernel updates appear directly in `apt list --upgradable` (`raspberrypi-kernel`/`linux-image-rpi-`); Ubuntu kernel updates don't, so they're detected by comparing the running kernel against the newest kernel that any installed `linux-image-generic*` metapackage (GA `linux-image-generic` and HWE `linux-image-generic-hwe-*`) points to via `Depends:` — the kernel GRUB would boot after a reboot. Checking only `linux-image-generic` falsely flags hosts running the HWE kernel line
 - **LXC containers**: a running kernel ending in `-pve` means the container shares the Proxmox host's kernel and can't update it independently — always reported as no kernel update regardless of what the metapackage depends on
 - **apt update**: Runs `sudo -n apt-get update -q > /dev/null 2>&1` silently before `apt list --upgradable` to ensure fresh package data
 
