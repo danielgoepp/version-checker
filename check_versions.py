@@ -1,4 +1,4 @@
-#!/Users/dang/Documents/Development/version-checker/.venv/bin/python
+#!/Users/dang/Development/version-checker/.venv/bin/python
 # PYTHON_ARGCOMPLETE_OK
 
 import argparse

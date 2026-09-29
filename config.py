@@ -94,4 +94,4 @@ GITHUB_API_TOKEN = get_optional_env('GITHUB_TOKEN', None, 'GitHub personal acces
 DATABASE_PATH = get_optional_env('DATABASE_PATH', str(Path(__file__).parent / 'data' / 'version_checker.db'), 'Path to SQLite database file')
 
 # k3s-config repository root (for manifest-based upgrades)
-K3S_CONFIG_FOLDER = get_optional_env('K3S_CONFIG_FOLDER', '/Users/dang/Documents/Development/k3s-config', 'Path to k3s-config repository root')
+K3S_CONFIG_FOLDER = get_optional_env('K3S_CONFIG_FOLDER', '/Users/dang/Development/k3s-config', 'Path to k3s-config repository root')

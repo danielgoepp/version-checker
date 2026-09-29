@@ -164,7 +164,7 @@ The system uses two separate fields for version checking:
 - **Home Assistant**: `config.HA_TOKENS` dictionary by instance
 - **OPNsense**: `config.OPNSENSE_API_KEY`, `config.OPNSENSE_API_SECRET`
 - **AWX**: `config.AWX_API_TOKENS` dict by instance (env: `AWX_API_TOKEN_PROD`, etc.); `config.AWX_BASE_URL` (env: `AWX_BASE_URL`, default `https://awx-prod.goepp.net`)
-- **k3s-config**: `config.K3S_CONFIG_FOLDER` (env: `K3S_CONFIG_FOLDER`, default: `/Users/dang/Documents/Development/k3s-config`) — root of the k3s manifest repository used for pinned-version upgrades
+- **k3s-config**: `config.K3S_CONFIG_FOLDER` (env: `K3S_CONFIG_FOLDER`, default: `/Users/dang/Development/k3s-config`) — root of the k3s manifest repository used for pinned-version upgrades
 - **GitHub API**: `config.GITHUB_API_TOKEN` for rate limit avoidance (60/hour unauthenticated vs 5,000/hour authenticated)
 - **Tailscale**: `config.TAILSCALE_ACCESS_TOKEN`, `config.TAILSCALE_TAILNET`
 - **Graylog**: `config.GRAYLOG_TOKENS` dict by instance, `config.GRAYLOG_USERNAME`/`config.GRAYLOG_PASSWORD`
@@ -227,7 +227,7 @@ The system uses two separate fields for version checking:
 ## Shell Autocomplete
 Tab completion for `--app` and `--instance` is provided via `argcomplete`. The registration line lives in `~/.oh-my-zsh/custom/shortcuts.zsh`:
 ```zsh
-eval "$(/Users/dang/Documents/Development/version-checker/.venv/bin/register-python-argcomplete check_versions.py)"
+eval "$(/Users/dang/Development/version-checker/.venv/bin/register-python-argcomplete check_versions.py)"
 ```
 `--instance` completions are filtered to the selected `--app` when both are provided.
 
