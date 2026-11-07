@@ -163,7 +163,12 @@ def _update_version_in_file(
     current_re = _anchored(current_version)
     if not current_re.search(content):
         if _anchored(latest_version).search(content):
-            print(f"  {label} already at {latest_version} — no update needed")
+            # File already holds the target version (e.g. a prior run bumped
+            # it but the push or AWX launch failed). Not an error: report
+            # success so the caller still pushes and triggers the upgrade —
+            # otherwise the app is stuck until --force.
+            print(f"  {label} already at {latest_version} — continuing with upgrade")
+            return True
         else:
             print(f"  Version '{current_version}' not found in {rel_path}")
         return False
@@ -185,8 +190,8 @@ def _update_version_in_file(
     updated = current_re.sub(_replace, content)
 
     if count == 0:
-        print(f"  {label} already at {latest_version} — no update needed")
-        return False
+        print(f"  {label} already at {latest_version} — continuing with upgrade")
+        return True
 
     if dry_run:
         print(f"  [DRY RUN] Would update {rel_path}: {current_version} → {latest_version} ({count} occurrence(s))")
@@ -243,15 +248,18 @@ def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_versi
 
     check = run_git(["git", "-C", str(repo_path), "diff", "--cached", "--quiet"], "git diff --cached")
     if check is not None and check.returncode == 0:
+        # Nothing new to commit, but a previous run may have committed and
+        # then failed to push — fall through to push so AWX never pulls a
+        # repo missing the version bump. Pushing when already in sync is a no-op.
         print(f"  Manifest already at {latest_version} in git — no commit needed")
-        return True
-
-    result = run_git(["git", "-C", str(repo_path), "commit", "-m", commit_msg], "git commit")
-    if result is None:
-        return False
-    if result.returncode != 0:
-        print(f"  git commit failed: {(result.stderr or result.stdout).strip()}")
-        return False
+        commit_msg = None
+    else:
+        result = run_git(["git", "-C", str(repo_path), "commit", "-m", commit_msg], "git commit")
+        if result is None:
+            return False
+        if result.returncode != 0:
+            print(f"  git commit failed: {(result.stderr or result.stdout).strip()}")
+            return False
 
     result = run_git(["git", "-C", str(repo_path), "push"], "git push")
     if result is None:
@@ -260,7 +268,10 @@ def git_commit_push_manifest(manifest_rel_path: str, app_name: str, latest_versi
         print(f"  git push failed: {(result.stderr or result.stdout).strip()}")
         return False
 
-    print(f"  Committed and pushed: {commit_msg}")
+    if commit_msg:
+        print(f"  Committed and pushed: {commit_msg}")
+    else:
+        print(f"  Pushed (remote in sync)")
     return True
 
 
